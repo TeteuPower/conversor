@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./nucleo" },
+    { "path": "./servidor" },
+    { "path": "./web" }
+  ]
+}

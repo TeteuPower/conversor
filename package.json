@@ -1,0 +1,18 @@
+{
+  "name": "conversor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Conversor de arquivos que roda na sua máquina. Nada sai daqui.",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=20.11" },
+  "workspaces": ["nucleo", "servidor", "web"],
+  "scripts": {
+    "dev": "npm run dev --workspace=servidor & npm run dev --workspace=web",
+    "build": "npm run build --workspace=nucleo && npm run build --workspace=web && npm run build --workspace=servidor",
+    "start": "npm run start --workspace=servidor",
+    "teste": "npm run teste --workspaces --if-present",
+    "tipos": "tsc --build --verbose",
+    "vetorizador": "cd vetorizador/fonte && python montar.py . ../vetorizador.html"
+  }
+}
