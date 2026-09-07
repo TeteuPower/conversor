@@ -129,6 +129,16 @@ export interface OpcoesImagem {
   limparMetadados?: boolean;
   /** Girar conforme o EXIF antes de converter. Ligado por padrão. */
   girarPeloExif?: boolean;
+  /**
+   * Só para PNG de saída: reduzir a uma paleta indexada. Ligado por padrão.
+   *
+   * A medição manda no padrão. Em arte chapada — captura de tela, logo, diagrama, que é o que
+   * de fato vira PNG — indexar custa 68 ms contra 15 ms e entrega 6 kB contra 11 kB: quase
+   * grátis, quase metade do tamanho. Em imagem com ruído em toda parte o preço vira 829 ms
+   * contra 15 ms, e aí desligar faz sentido — só que imagem assim é foto, e foto em PNG já é o
+   * formato errado. Desligue ao converter muitas fotos para PNG de uma vez.
+   */
+  paletaIndexada?: boolean;
 }
 
 /** As opções do vetorizador. Espelham `vetorizar(rgba, w, h, opc)` do núcleo já existente. */

@@ -1,0 +1,23 @@
+{
+  "name": "@conversor/servidor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "node --watch --experimental-strip-types src/index.ts",
+    "build": "tsc --build",
+    "start": "node dist/index.js",
+    "teste": "vitest run",
+    "medir-pesos": "node --experimental-strip-types src/engines/medir-pesos.ts"
+  },
+  "dependencies": {
+    "@conversor/nucleo": "*",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
