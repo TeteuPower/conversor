@@ -1,0 +1,77 @@
+<!doctype html><meta charset="utf-8"><title>lote</title><pre id="out">rodando...</pre>
+<script type="module">
+import { vetorizar, analisa } from './vetorizar.js';
+const log = []; const p = (...a) => log.push(a.join(' '));
+
+async function carrega(url) {
+  const img = new Image();
+  await new Promise((ok, err) => { img.onload = ok; img.onerror = () => err(new Error('load ' + url)); img.src = url; });
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0);
+  return { d: g.getImageData(0, 0, c.width, c.height).data, w: c.width, h: c.height };
+}
+async function rasteriza(svg, w, h) {
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+  const img = new Image();
+  await new Promise((ok, err) => { img.onload = ok; img.onerror = () => err(new Error('svg')); img.src = url; });
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.clearRect(0,0,w,h); g.drawImage(img, 0, 0, w, h);
+  URL.revokeObjectURL(url);
+  return g.getImageData(0, 0, w, h).data;
+}
+/** Separa DUAS fontes de erro que nao devem ser somadas:
+ *   - cor no INTERIOR liso  -> erro do modelo de pintura (o que o ajuste controla)
+ *   - cor perto de ARESTA   -> erro de posicionamento subpixel; num limite preto/amarelo,
+ *                              meio pixel de deslocamento ja da desvio de 200/255.
+ *  Relatar so o `max` global confunde as duas e faz um ajuste perfeito parecer ruim. */
+function compara(A, B, w, h) {
+  let tinta = 0, dif = 0; const liso = [], borda = [];
+  const arestaEm = (i, x, y) => {
+    if (x < 1 || y < 1 || x >= w-1 || y >= h-1) return true;
+    for (const j of [i-1, i+1, i-w, i+w]) {
+      for (let c = 0; c < 4; c++) if (Math.abs(A[i*4+c] - A[j*4+c]) > 24) return true;
+    }
+    return false;
+  };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y*w + x;
+    const aA = A[i*4+3] > 127, aB = B[i*4+3] > 127;
+    if (aA) tinta++;
+    if (aA !== aB) dif++;
+    if (A[i*4+3] === 255 && B[i*4+3] === 255) {
+      const e = Math.max(Math.abs(A[i*4]-B[i*4]), Math.abs(A[i*4+1]-B[i*4+1]), Math.abs(A[i*4+2]-B[i*4+2]));
+      (arestaEm(i, x, y) ? borda : liso).push(e);
+    }
+  }
+  const est = (a) => { a.sort((p,q)=>p-q); return a.length ? {med:a[a.length>>1], p95:a[Math.floor(a.length*0.95)], max:a[a.length-1], n:a.length} : null; };
+  return { pct: tinta ? dif/tinta*100 : 0, liso: est(liso), borda: est(borda) };
+}
+
+const arquivos = ['logo.png','hive-logo.png','logofull_light.png','logomail_light.png',
+                  'higgsfield.png','agent-bee.png','agent_brain.png'];
+for (const f of arquivos) {
+  try {
+    const { d, w, h } = await carrega(f);
+    const info = analisa(d, w, h);
+    p('');
+    p('### ' + f + '  ' + w + 'x' + h);
+    p('    analise: modo=' + info.modo + ' cores=' + info.cores + ' chapeza=' + info.chapeza.toFixed(2) +
+      ' vazio=' + (info.fracVazio*100).toFixed(0) + '% parcial=' + (info.fracParcial*100).toFixed(1) + '%');
+    const { svg, diag } = vetorizar(d, w, h, { tol: 0.5 });
+    if (!svg) { p('    RECUSADO: ' + diag.avisos.join(' ')); continue; }
+    const c = compara(d, await rasteriza(svg, w, h), w, h);
+    const kb = (svg.length/1024).toFixed(1), orig = '?';
+    p('    busca de K: ' + diag.buscaK.map(t => 'K=' + t.K + '->' + t.pior + '|' + t.cauda + '/cob' + t.cobertura).join('  ') + '  => K=' + diag.K);
+    p('    saida: ' + diag.camadas.length + ' camadas, ' + diag.nos + ' nos, ' + kb + ' KB');
+    p('    pinturas: ' + diag.camadas.map(x => x.pintura + (x.paradas ? '/' + x.paradas + 'par' : '') + (x.obs ? '/' + x.obs : '')).join(', '));
+    if (diag.avisos.length) p('    AVISO: ' + diag.avisos.join(' '));
+    const q = (o) => o ? ('med ' + o.med + ' p95 ' + o.p95 + ' max ' + o.max + ' (n=' + o.n + ')') : '-';
+    p('    forma      -> ' + c.pct.toFixed(3) + '% da tinta divergente');
+    p('    cor INTERIOR-> ' + q(c.liso) + '   <- erro do modelo de pintura');
+    p('    cor ARESTA  -> ' + q(c.borda) + '   <- posicionamento subpixel');
+  } catch (e) { p('### ' + f + ' ERRO: ' + e.message); }
+}
+document.getElementById('out').textContent = log.join('\n');
+</script>

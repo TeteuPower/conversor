@@ -1,0 +1,683 @@
+<title>Vetorizador</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Paleta de INSTRUMENTO, e a escolha e do assunto: este app existe para medir cor, entao a
+   propria interface nao pode tingir a vizinhanca da amostra. O acento e um teal fundo, longe
+   tanto do ambar do estado "aceitavel" quanto das laranjas e vermelhos que aparecem na maioria
+   das marcas que se vetorizam. O cinza tem viés frio de proposito — cinza puro le como cinza
+   nao escolhido.
+   Tres estados de tema, nao dois: escolha explicita marca data-theme na raiz; o padrao "sistema"
+   nao marca nada e so prefers-color-scheme separa. Todo token nasce no :root simples. */
+:root{
+  --fundo:#f4f6f7; --painel:#ffffff; --afundado:#eceff1; --linha:#dde3e6;
+  --texto:#121a1e; --fraco:#5a6a72;
+  --acento:#0f6d7a; --acento-fraco:#e6f2f3; --acento-forte:#0a5460; --sobre-acento:#ffffff;
+  --bom:#12744a; --meio:#8a5c00; --ruim:#a32020;
+  --bom-fundo:#e7f4ec; --meio-fundo:#fbf2df; --ruim-fundo:#faeaea;
+  --sombra:0 1px 2px #0f1a1e0a, 0 4px 14px #0f1a1e08;
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --fundo:#0f1417; --painel:#171e22; --afundado:#121a1d; --linha:#2a353a;
+  --texto:#e6ecee; --fraco:#93a3ab;
+  --acento:#4fc3cf; --acento-fraco:#102b30; --acento-forte:#7ad6e0; --sobre-acento:#08191c;
+  --bom:#5fd39b; --meio:#e0b155; --ruim:#f08a8a;
+  --bom-fundo:#10241b; --meio-fundo:#241d0d; --ruim-fundo:#2a1414;
+  --sombra:0 1px 2px #0006, 0 4px 16px #0004;
+}}
+:root[data-theme="dark"]{
+  --fundo:#0f1417; --painel:#171e22; --afundado:#121a1d; --linha:#2a353a;
+  --texto:#e6ecee; --fraco:#93a3ab;
+  --acento:#4fc3cf; --acento-fraco:#102b30; --acento-forte:#7ad6e0; --sobre-acento:#08191c;
+  --bom:#5fd39b; --meio:#e0b155; --ruim:#f08a8a;
+  --bom-fundo:#10241b; --meio-fundo:#241d0d; --ruim-fundo:#2a1414;
+  --sombra:0 1px 2px #0006, 0 4px 16px #0004;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--texto);
+  font:400 14px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+h1,h2{text-wrap:balance}
+:focus-visible{outline:2px solid var(--acento);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+header{display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--linha);
+  background:var(--painel);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+h1{font-size:15px;font-weight:600;margin:0;letter-spacing:-.015em}
+.sub{color:var(--fraco);font-size:12.5px}
+.cresce{flex:1}
+button{font:500 13px/1 var(--sans);padding:8px 13px;border:1px solid var(--linha);border-radius:6px;
+  background:var(--painel);color:var(--texto);cursor:pointer;transition:border-color .12s,color .12s}
+button:hover:not(:disabled){border-color:var(--acento);color:var(--acento)}
+button:disabled{opacity:.4;cursor:default}
+button.primario{background:var(--acento);border-color:var(--acento);color:var(--sobre-acento)}
+button.primario:hover:not(:disabled){background:var(--acento-forte);border-color:var(--acento-forte);
+  color:var(--sobre-acento)}
+main{padding:18px 20px 40px;max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+
+/* Nao tudo e cartao: o painel de dado tem borda e sombra porque e objeto que se le;
+   a faixa de aviso ganha so uma barra lateral; o palco e afundado, nao elevado. */
+.cartao{background:var(--painel);border:1px solid var(--linha);border-radius:10px;
+  box-shadow:var(--sombra);overflow:hidden}
+.cartao>h2{font:600 11px/1 var(--sans);text-transform:uppercase;letter-spacing:.09em;
+  color:var(--fraco);margin:0;padding:12px 15px;border-bottom:1px solid var(--linha)}
+.cartao>.corpo{padding:15px;display:flex;flex-direction:column;gap:12px}
+
+#alvo{border:1.5px dashed var(--linha);border-radius:10px;padding:18px 20px;text-align:center;
+  color:var(--fraco);background:var(--painel);cursor:pointer;transition:border-color .12s,background .12s}
+#alvo:hover{border-color:var(--acento)}
+#alvo.sobre{border-color:var(--acento);background:var(--acento-fraco);color:var(--acento)}
+
+.telas{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--linha)}
+@media (max-width:860px){.telas{grid-template-columns:1fr}}
+.tela{background:var(--painel);min-width:0;display:flex;flex-direction:column}
+.tela>.rot{display:flex;align-items:center;gap:9px;padding:9px 13px;border-bottom:1px solid var(--linha);
+  font:600 10.5px/1 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--fraco)}
+.palco{position:relative;flex:1;overflow:auto;min-height:340px;max-height:min(56vh,520px);background:var(--afundado);
+  background-image:linear-gradient(45deg,#7f8c9314 25%,#0000 25%,#0000 75%,#7f8c9314 75%),
+                   linear-gradient(45deg,#7f8c9314 25%,#0000 25%,#0000 75%,#7f8c9314 75%);
+  background-size:18px 18px;background-position:0 0,9px 9px;display:grid;place-items:center;padding:12px}
+.palco>*{width:min(100%,440px);height:auto;display:block}
+.palco>img,.palco>canvas{image-rendering:pixelated}
+.abas{display:flex;gap:3px;margin-left:auto}
+.abas button{padding:4px 10px;font-size:11px;border-radius:5px;text-transform:none;letter-spacing:0}
+.abas button[aria-pressed="true"]{background:var(--acento);border-color:var(--acento);color:var(--sobre-acento)}
+
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 11px;border-bottom:1px solid var(--linha);vertical-align:baseline}
+th{color:var(--fraco);font-weight:500;width:1%;white-space:nowrap}
+tr:last-child th,tr:last-child td{border-bottom:0}
+td{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.bom{color:var(--bom)} .meio{color:var(--meio)} .ruim{color:var(--ruim)}
+/* Estado tambem na FORMA, nao so no numero: o pino diz o veredicto sem o leitor
+   precisar saber que 0,4% e bom e 4% nao e. */
+.pino{font:600 10px/1 var(--sans);text-transform:uppercase;letter-spacing:.07em;
+  padding:3px 7px;border-radius:20px;margin-right:9px;white-space:nowrap;
+  display:inline-block;vertical-align:1px}
+.pino.bom{background:var(--bom-fundo);color:var(--bom)}
+.pino.meio{background:var(--meio-fundo);color:var(--meio)}
+.pino.ruim{background:var(--ruim-fundo);color:var(--ruim)}
+
+.grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:16px}
+label.campo{display:block;font-size:12.5px;color:var(--fraco);margin-bottom:5px}
+label.campo b{color:var(--texto);font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--acento);margin:0}
+.dica{font-size:12px;color:var(--fraco);line-height:1.45;max-width:62ch}
+.aviso{border-left:2px solid var(--acento);background:var(--acento-fraco);padding:9px 12px;
+  border-radius:0 6px 6px 0;font-size:12.5px;line-height:1.5}
+.aviso+.aviso{margin-top:7px}
+.recusa{border-left-color:var(--ruim);background:var(--ruim-fundo)}
+pre.codigo{margin:0;padding:12px;background:var(--afundado);border:1px solid var(--linha);border-radius:7px;
+  font-family:var(--mono);font-size:11.5px;max-height:230px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.chip{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border:1px solid var(--linha);border-radius:20px;
+  display:inline-flex;align-items:center;gap:5px}
+.amostra{width:9px;height:9px;border-radius:50%;box-shadow:inset 0 0 0 1px #0002}
+.oculto{display:none!important}
+#estado{font:500 12px/1 var(--mono);color:var(--acento)}
+select{font:400 13px/1.2 var(--sans);padding:7px 9px;border:1px solid var(--linha);border-radius:6px;
+  background:var(--painel);color:var(--texto);max-width:100%}
+.linhaFlex{display:flex;gap:11px;align-items:center;flex-wrap:wrap}
+.rodape{font-size:11.5px;color:var(--fraco);text-align:center;padding-top:4px}
+</style>
+
+<header>
+  <h1>Vetorizador</h1>
+  <span class="sub" id="assinatura">imagem &rarr; SVG, com medi&ccedil;&atilde;o de fidelidade</span>
+  <span id="estado"></span>
+  <span class="cresce"></span>
+  <button id="btTema" title="Alternar tema">Tema</button>
+  <button id="btAbrir" class="primario">Abrir arquivo</button>
+  <input type="file" id="arquivo" class="oculto" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/svg+xml,.svg">
+</header>
+
+<main>
+  <div id="alvo">
+    <strong>Arraste uma imagem aqui</strong>, ou clique para escolher.<br>
+    <span style="font-size:12.5px">
+      PNG, JPEG, WebP, GIF &mdash; ou um <b>SVG</b>, para extrair um elemento dele em vez de tra&ccedil;ar.
+    </span>
+  </div>
+
+  <div id="painelRecusa" class="cartao oculto">
+    <h2>N&atilde;o vetorizado</h2>
+    <div class="corpo"><div id="txtRecusa" class="aviso recusa"></div>
+      <button id="btForcar">Vetorizar mesmo assim</button>
+      <div class="dica">For&ccedil;ar produz um SVG com milhares de n&oacute;s, provavelmente maior que o
+        arquivo original e com menos detalhe. &Uacute;til apenas para inspe&ccedil;&atilde;o.</div>
+    </div>
+  </div>
+
+  <div id="painelExtrair" class="cartao oculto">
+    <h2>O vetor j&aacute; existe &mdash; extrair</h2>
+    <div class="corpo">
+      <div class="aviso">Este arquivo <b>j&aacute; &eacute; vetorial</b>. Extrair o elemento certo d&aacute;
+        fidelidade absoluta; tra&ccedil;ar um raster d&aacute; aproxima&ccedil;&atilde;o. Escolha o elemento:</div>
+      <div class="linhaFlex">
+        <select id="selElemento"></select>
+        <label class="linhaFlex" style="gap:5px"><input type="checkbox" id="chkMargem"> respiro de 4%</label>
+        <span class="dica" id="infoCaixa"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <div class="telas">
+      <div class="tela">
+        <div class="rot">Entrada <span id="rotEntrada" class="mono" style="text-transform:none"></span></div>
+        <div class="palco" id="palcoA"></div>
+      </div>
+      <div class="tela">
+        <div class="rot">Sa&iacute;da
+          <span id="rotSaida" class="mono" style="text-transform:none"></span>
+          <span class="abas">
+            <button data-vista="svg" aria-pressed="true">SVG</button>
+            <button data-vista="dif" aria-pressed="false">Diferen&ccedil;a</button>
+          </span>
+        </div>
+        <div class="palco" id="palcoB"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao" id="painelRelatorio">
+    <h2>Fidelidade medida</h2>
+    <div class="corpo">
+      <div id="avisos"></div>
+      <table id="tabela"></table>
+      <div class="dica" style="margin-top:9px">
+        A medi&ccedil;&atilde;o rasteriza o SVG produzido no mesmo tamanho da entrada e compara pixel a pixel.
+        <b>Cor no interior</b> mede o erro do modelo de pintura; <b>cor na aresta</b> mede posicionamento
+        subpixel &mdash; numa fronteira preto/amarelo, meio pixel de deslocamento j&aacute; d&aacute; desvio de 200/255.
+        Somar as duas faria um ajuste perfeito parecer ruim.
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao" id="painelAjustes">
+    <h2>Ajustes</h2>
+    <div class="corpo grade" id="ajustes">
+      <div>
+        <label class="campo">Toler&acirc;ncia da curva: <b id="vTol"></b> px</label>
+        <input type="range" id="tol" min="0.1" max="3" step="0.1" value="0.6">
+        <div class="dica">Desvio m&aacute;ximo aceito entre a B&eacute;zier e o contorno. Menor = mais fiel e mais n&oacute;s.</div>
+      </div>
+      <div>
+        <label class="campo">Canto a partir de: <b id="vCanto"></b>&deg;</label>
+        <input type="range" id="canto" min="15" max="90" step="1" value="42">
+        <div class="dica">Virada m&iacute;nima para o ajuste quebrar a curva e preservar a quina.</div>
+      </div>
+      <div>
+        <label class="campo">Classes de cor no m&aacute;ximo: <b id="vCores"></b></label>
+        <input type="range" id="cores" min="1" max="24" step="1" value="12">
+        <div class="dica">Teto da busca. O n&uacute;mero usado &eacute; decidido pelo res&iacute;duo, n&atilde;o por este limite.</div>
+      </div>
+      <div>
+        <label class="campo">Res&iacute;duo aceit&aacute;vel: <b id="vRes"></b>/255</label>
+        <input type="range" id="res" min="1" max="30" step="1" value="6">
+        <div class="dica">Quando o modelo de pintura de uma classe passa disso, o app usa mais classes.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Sa&iacute;da</h2>
+    <div class="corpo">
+      <div class="linhaFlex" style="margin-bottom:11px">
+        <button id="btBaixar" class="primario" disabled>Baixar SVG</button>
+        <button id="btCopiar" disabled>Copiar c&oacute;digo</button>
+        <button id="btCodigo" disabled>Ver c&oacute;digo</button>
+        <span id="avisoCopia" class="dica"></span>
+      </div>
+      <pre class="codigo oculto" id="codigo"></pre>
+    </div>
+  </div>
+
+  <p class="rodape">Tudo roda no seu navegador: a imagem n&atilde;o &eacute; enviada a servidor nenhum.</p>
+</main>
+
+<script type="module">
+import { vetorizar, analisa } from './vetorizar.js';
+import { carregaSvg, candidatos, extrai } from './extrair.js';
+
+const $ = (s) => document.querySelector(s);
+const el = {
+  alvo: $('#alvo'), arquivo: $('#arquivo'), estado: $('#estado'),
+  palcoA: $('#palcoA'), palcoB: $('#palcoB'), rotEntrada: $('#rotEntrada'), rotSaida: $('#rotSaida'),
+  tabela: $('#tabela'), avisos: $('#avisos'), codigo: $('#codigo'),
+  painelRecusa: $('#painelRecusa'), txtRecusa: $('#txtRecusa'),
+  painelExtrair: $('#painelExtrair'), selElemento: $('#selElemento'), infoCaixa: $('#infoCaixa'),
+  chkMargem: $('#chkMargem'), avisoCopia: $('#avisoCopia'),
+  painelAjustes: $('#painelAjustes'),
+};
+/** Os controles de tracado nao tem efeito nenhum sobre extracao — deixa-los visiveis ali
+ *  convida a mexer num botao morto. */
+const modoNaTela = (m) => el.painelAjustes.classList.toggle('oculto', m === 'extrair');
+const est = {
+  nome: '', bytesEntrada: 0, rgba: null, w: 0, h: 0,   // raster de entrada (ou render do svg)
+  svg: null, diag: null, vista: 'svg', forcar: false,
+  modo: 'tracar', raizSvg: null, cands: [], rasterRef: null,
+};
+
+/* ---------- utilidades de imagem ---------- */
+
+function pixelsDe(img, w, h) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.clearRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+  return g.getImageData(0, 0, w, h).data;
+}
+const carregaImg = (url) => new Promise((ok, err) => {
+  const i = new Image(); i.onload = () => ok(i);
+  i.onerror = () => err(new Error('nao foi possivel decodificar a imagem'));
+  i.src = url;
+});
+const urlDeSvg = (s) => URL.createObjectURL(new Blob([s], { type: 'image/svg+xml' }));
+
+/* Dois caminhos para rasterizar, de proposito: `blob:` primeiro, `data:` como reserva. Numa
+ * pagina hospedada com CSP restritiva o `blob:` pode ser barrado em img-src, e sem rasterizacao
+ * nao ha medicao de fidelidade — que e o unico motivo deste app existir em vez de um tracador
+ * qualquer. A reserva custa uma linha e salva o recurso principal. */
+async function rasterizaSvg(svg, w, h) {
+  try {
+    const u = urlDeSvg(svg);
+    try { return pixelsDe(await carregaImg(u), w, h); } finally { URL.revokeObjectURL(u); }
+  } catch {
+    const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(svg)));
+    return pixelsDe(await carregaImg('data:image/svg+xml;base64,' + b64), w, h);
+  }
+}
+
+/** Duas fontes de erro medidas SEPARADAMENTE (ver a dica no painel). */
+function compara(A, B, w, h) {
+  let tinta = 0, dif = 0; const liso = [], borda = [];
+  const naAresta = (i, x, y) => {
+    if (x < 1 || y < 1 || x >= w - 1 || y >= h - 1) return true;
+    for (const j of [i - 1, i + 1, i - w, i + w])
+      for (let c = 0; c < 4; c++) if (Math.abs(A[i*4+c] - A[j*4+c]) > 24) return true;
+    return false;
+  };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    const aA = A[i*4+3] > 127, aB = B[i*4+3] > 127;
+    if (aA) tinta++;
+    if (aA !== aB) dif++;
+    if (A[i*4+3] === 255 && B[i*4+3] === 255) {
+      const e = Math.max(Math.abs(A[i*4]-B[i*4]), Math.abs(A[i*4+1]-B[i*4+1]), Math.abs(A[i*4+2]-B[i*4+2]));
+      (naAresta(i, x, y) ? borda : liso).push(e);
+    }
+  }
+  const est_ = (a) => { a.sort((p, q) => p - q); return a.length
+    ? { med: a[a.length>>1], p95: a[Math.floor(a.length*0.95)], max: a[a.length-1], n: a.length } : null; };
+  return { pct: tinta ? dif / tinta * 100 : 0, difPx: dif, liso: est_(liso), borda: est_(borda) };
+}
+
+function telaDiferenca(A, B, w, h) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  const im = g.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) {
+    const dA = Math.abs(A[i*4+3] - B[i*4+3]);
+    const dC = Math.max(Math.abs(A[i*4]-B[i*4]), Math.abs(A[i*4+1]-B[i*4+1]), Math.abs(A[i*4+2]-B[i*4+2]));
+    const forma = dA > 96, v = Math.min(255, dC * 6);
+    im.data[i*4]   = forma ? 255 : v;                 // magenta = silhueta divergente
+    im.data[i*4+1] = forma ? 0 : Math.max(0, 40 - v);
+    im.data[i*4+2] = forma ? 255 : v;
+    im.data[i*4+3] = (forma || v > 8) ? 235 : 16;
+  }
+  g.putImageData(im, 0, 0);
+  return c;
+}
+
+/* ---------- relatorio ---------- */
+
+const kb = (n) => (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB';
+const classe = (v, bom, meio) => v <= bom ? 'bom' : v <= meio ? 'meio' : 'ruim';
+/** Veredicto em palavra, nao so em cor e numero: quem le o relatorio nao tem obrigacao de
+ *  saber de cabeca que 0,4% de silhueta e otimo e 4% nao e. */
+const pino = (v, bom, meio) => {
+  const c = classe(v, bom, meio);
+  return `<span class="pino ${c}">${{ bom: 'fiel', meio: 'aceit&aacute;vel', ruim: 'aproximado' }[c]}</span>`;
+};
+
+function pintaRelatorio(cmp, extra) {
+  const l = [];
+  const linha = (t, v, cls) => l.push(`<tr><th>${t}</th><td class="num ${cls || ''}">${v}</td></tr>`);
+  if (cmp) {
+    linha('Silhueta', pino(cmp.pct, 0.5, 2) + `${cmp.pct.toFixed(3)}% da tinta divergente ` +
+      `<span style="color:var(--fraco)">(${cmp.difPx.toLocaleString('pt-BR')} px)</span>`, classe(cmp.pct, 0.5, 2));
+    const q = (o) => o ? `mediana ${o.med} &nbsp; p95 ${o.p95} &nbsp; m&aacute;x ${o.max}` : '&mdash;';
+    linha('Cor no interior', (cmp.liso ? pino(cmp.liso.p95, 2, 8) : '') + q(cmp.liso),
+      cmp.liso ? classe(cmp.liso.p95, 2, 8) : '');
+    linha('Cor na aresta', (cmp.borda ? pino(cmp.borda.p95, 8, 30) : '') + q(cmp.borda),
+      cmp.borda ? classe(cmp.borda.p95, 8, 30) : '');
+  }
+  for (const [t, v, cls] of extra) linha(t, v, cls);
+  el.tabela.innerHTML = l.join('');
+}
+
+/* ---------- fluxo: tracar raster ---------- */
+
+async function tracar() {
+  if (!est.rgba) return;
+  el.estado.textContent = 'calculando...';
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const opc = {
+    tol: +$('#tol').value, grausMin: +$('#canto').value,
+    maxCores: +$('#cores').value, limiarResiduo: +$('#res').value,
+    forcarFoto: est.forcar,
+  };
+  const t0 = performance.now();
+  const { svg, diag } = vetorizar(est.rgba, est.w, est.h, opc);
+  const ms = performance.now() - t0;
+  est.svg = svg; est.diag = diag;
+
+  el.painelRecusa.classList.toggle('oculto', !!svg);
+  if (!svg) {
+    el.txtRecusa.innerHTML = diag.avisos.join(' ');
+    el.palcoB.innerHTML = ''; el.rotSaida.textContent = '';
+    pintaRelatorio(null, [['An&aacute;lise',
+      `${diag.cores} cores distintas &middot; chapeza ${diag.chapeza.toFixed(2)} &middot; modo <b>${diag.modo}</b>`, 'ruim']]);
+    acoes(false); el.estado.textContent = ''; return;
+  }
+
+  let rast = null, cmp = null;
+  try {
+    rast = await rasterizaSvg(svg, est.w, est.h);
+    cmp = compara(est.rgba, rast, est.w, est.h);
+  } catch (e) { /* sem medicao; o SVG segue valido e a tabela diz que faltou a afericao */ }
+  est.rast = rast;
+  mostraSaida();
+
+  // Em K=1 a "paleta" e so o centroide da regiao, e o preenchimento de fato pode ser um
+  // gradiente — mostrar a amostra ali daria a entender que a saida e chapada.
+  const paleta = diag.K > 1 ? (diag.paleta || []).map((c) =>
+    `<span class="chip"><span class="amostra" style="background:${c}"></span>${c}</span>`).join('') : '';
+  const pinturas = (diag.camadas || []).map((c) =>
+    c.pintura + (c.paradas ? `/${c.paradas} paradas` : '') + (c.obs ? ` (${c.obs})` : '')).join(', ');
+  pintaRelatorio(cmp, [
+    ['Arquivo', `${kb(svg.length)} de SVG &nbsp;<span style="color:var(--fraco)">contra ${kb(est.bytesEntrada)} da entrada</span>`,
+      svg.length <= est.bytesEntrada ? 'bom' : 'meio'],
+    ['Geometria', `${diag.nos} n&oacute;s de curva &middot; ${diag.camadas.length} camada(s) &middot; ${ms.toFixed(0)} ms`],
+    ['Modelo de pintura', pinturas],
+    ['Classes de cor', `K = <b>${diag.K}</b> &nbsp;<span style="color:var(--fraco)">busca: ${
+      (diag.buscaK||[]).map((t) => `K=${t.K}&rarr;${t.pior}`).join(', ')}</span>` + (paleta ? `<div class="chips">${paleta}</div>` : '')],
+  ]);
+  el.avisos.innerHTML = (diag.avisos || []).map((a) => `<div class="aviso">${a}</div>`).join('');
+  if (!cmp) el.avisos.insertAdjacentHTML('afterbegin', '<div class="aviso recusa">O navegador ' +
+    'barrou a rasteriza&ccedil;&atilde;o do SVG, ent&atilde;o <b>a fidelidade n&atilde;o p&ocirc;de ser medida</b> aqui. ' +
+    'O SVG abaixo est&aacute; produzido e v&aacute;lido &mdash; mas confira-o antes de confiar nele.</div>');
+  acoes(true);
+  el.estado.textContent = '';
+}
+
+/* ---------- fluxo: extrair de svg ---------- */
+
+async function extrair() {
+  const i = +el.selElemento.value;
+  const c = est.cands[i]; if (!c) return;
+  el.avisos.innerHTML = '';   // sem isso o aviso "sem referencia" sobrevivia ao gabarito chegar
+  const lado = Math.max(c.caixa.width, c.caixa.height);
+  let r;
+  try { r = extrai(est.raizSvg, c.el, { margem: el.chkMargem.checked ? lado * 0.04 : 0, titulo: '' }); }
+  catch (e) { el.avisos.innerHTML = `<div class="aviso recusa">${e.message}</div>`; return; }
+  est.svg = r.svg;
+  el.infoCaixa.innerHTML = `caixa: <b class="mono">${r.caixa.w.toFixed(2)} &times; ${r.caixa.h.toFixed(2)}</b>` +
+    ` &middot; ${r.nDefs} defs alcan&ccedil;adas`;
+
+  const larg = Math.max(1, Math.min(1400, Math.round(r.caixa.w)));
+  const alt = Math.max(1, Math.round(larg * r.caixa.h / r.caixa.w));
+  mostraSaida();
+
+  const extra = [
+    ['Arquivo', `${kb(r.svg.length)} de SVG &nbsp;<span style="color:var(--fraco)">contra ${kb(est.bytesEntrada)} do original</span>`, 'bom'],
+    ['Caixa recortada', `${r.caixa.w.toFixed(4)} &times; ${r.caixa.h.toFixed(4)} &nbsp;<span style="color:var(--fraco)">(aspecto ${(r.caixa.w/r.caixa.h).toFixed(5)})</span>`],
+    ['Fidelidade', 'absoluta &mdash; a geometria n&atilde;o foi aproximada, foi <b>recortada</b>', 'bom'],
+  ];
+  // se houver um raster de referencia carregado, mede a extracao contra ele (o fluxo do icone do Hive)
+  if (est.rasterRef) {
+    const { rgba, w, h } = est.rasterRef;
+    let rast = null, cmp = null;
+    try { rast = await rasterizaSvg(r.svg, w, h); cmp = compara(rgba, rast, w, h); } catch {}
+    est.rgba = rgba; est.w = w; est.h = h; est.rast = rast;
+    pintaRelatorio(cmp, extra);
+    el.avisos.innerHTML = '<div class="aviso">A diverg&ecirc;ncia acima &eacute; do <b>raster em rela&ccedil;&atilde;o ao ' +
+      'vetor</b>, n&atilde;o um erro da extra&ccedil;&atilde;o: o PNG &eacute; uma rasteriza&ccedil;&atilde;o desse mesmo desenho, ' +
+      'com o antisserrilhado e o recorte dele. Serve para confirmar que o elemento escolhido &eacute; o certo.</div>';
+  } else {
+    pintaRelatorio(null, extra);
+    el.avisos.innerHTML = '<div class="aviso">Sem refer&ecirc;ncia para medir. Arraste tamb&eacute;m o ' +
+      '<b>PNG correspondente</b> e o app confere a extra&ccedil;&atilde;o contra ele, pixel a pixel.</div>';
+  }
+  if (r.avisos.length) {
+    el.avisos.innerHTML += r.avisos.map((a) => `<div class="aviso">${a}</div>`).join('');
+  }
+  acoes(true);
+}
+
+/* ---------- telas e acoes ---------- */
+
+function mostraSaida() {
+  el.palcoB.innerHTML = '';
+  if (!est.svg) return;
+  if (est.vista === 'dif' && est.rast && est.rgba) {
+    el.palcoB.appendChild(telaDiferenca(est.rgba, est.rast, est.w, est.h));
+    el.rotSaida.textContent = 'magenta = silhueta; brilho = desvio de cor';
+  } else {
+    const d = document.createElement('div');
+    d.innerHTML = est.svg;
+    const s = d.firstElementChild;
+    s.removeAttribute('width'); s.removeAttribute('height');
+    s.style.imageRendering = 'auto';   // a escala vem do CSS do palco, igual para os dois lados
+    el.palcoB.appendChild(s);
+    el.rotSaida.textContent = 'SVG (vetorial: amplie sem perda)';
+  }
+}
+function acoes(ok) {
+  for (const b of ['#btBaixar', '#btCopiar', '#btCodigo']) $(b).disabled = !ok;
+  if (ok) el.codigo.textContent = est.svg;
+}
+
+/* ---------- entrada de arquivo ---------- */
+
+async function recebe(file) {
+  const ehSvg = /svg/i.test(file.type) || /\.svg$/i.test(file.name);
+  el.estado.textContent = 'lendo...';
+  try {
+    if (ehSvg) {
+      const texto = await file.text();
+      est.nome = file.name; est.bytesEntrada = file.size; est.modo = 'extrair';
+      const raiz = carregaSvg(texto);
+      // precisa estar VIVO no documento para getBBox/getScreenCTM responderem
+      const hosp = document.createElement('div');
+      hosp.style.cssText = 'position:absolute;left:-99999px;top:0';
+      const vivo = document.importNode(raiz, true);
+      hosp.appendChild(vivo); document.body.appendChild(hosp);
+      est.raizSvg = vivo;
+      est.cands = candidatos(vivo);
+      if (!est.cands.length) throw new Error('Nenhum elemento com area neste SVG.');
+      el.selElemento.innerHTML = est.cands.map((c, i) =>
+        `<option value="${i}">${c.rotulo} &mdash; ${c.dim}${c.texto ? ' [contem texto]' : ''}</option>`).join('');
+      el.painelExtrair.classList.remove('oculto');
+      el.painelRecusa.classList.add('oculto');
+      modoNaTela('extrair');
+      el.rotEntrada.textContent = `${file.name} (vetorial)`;
+      el.palcoA.innerHTML = '';
+      const pv = document.createElement('div'); pv.innerHTML = texto;
+      const sv = pv.firstElementChild;
+      if (sv) { sv.removeAttribute('width'); sv.removeAttribute('height');
+        el.palcoA.appendChild(sv); }
+      await extrair();
+    } else {
+      const url = URL.createObjectURL(file);
+      const img = await carregaImg(url);
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const rgba = pixelsDe(img, w, h);
+      if (est.modo === 'extrair' && est.raizSvg) {
+        // raster chegou DEPOIS de um svg: serve de gabarito da extracao
+        est.rasterRef = { rgba, w, h };
+        el.rotEntrada.textContent = `${est.nome} + ${file.name} (referencia)`;
+        el.palcoA.innerHTML = ''; el.palcoA.appendChild(img);
+        await extrair();
+      } else {
+        est.nome = file.name; est.bytesEntrada = file.size; est.modo = 'tracar';
+        est.rgba = rgba; est.w = w; est.h = h; est.forcar = false; est.rasterRef = null;
+        est.raizSvg = null; el.painelExtrair.classList.add('oculto');
+        modoNaTela('tracar');
+        el.rotEntrada.textContent = `${file.name} \u00b7 ${w}\u00d7${h}`;
+        el.palcoA.innerHTML = ''; el.palcoA.appendChild(img);
+        URL.revokeObjectURL(url);
+        if (w * h > 8e6) el.avisos.innerHTML = '<div class="aviso">Imagem grande (' +
+          (w*h/1e6).toFixed(1) + ' MP): cada c&aacute;lculo leva alguns segundos.</div>';
+        await tracar();
+      }
+    }
+    el.alvo.classList.add('oculto');
+  } catch (e) {
+    el.avisos.innerHTML = `<div class="aviso recusa">${e.message}</div>`;
+  }
+  el.estado.textContent = '';
+}
+
+/* ---------- amostra embutida ---------- */
+
+/* Um app que abre vazio nao mostra nada: a primeira tela e o que um link compartilhado
+ * exibe. Esta amostra e DESENHADA na propria pagina (nao ha imagem embutida no arquivo) e foi
+ * escolhida para exercitar de uma vez os quatro pontos interessantes do tracador:
+ *   - curva lisa e canto DURO no mesmo contorno (a ponta da gota), que testa a deteccao de quina;
+ *   - um buraco, que testa orientacao de loop e fill-rule;
+ *   - gradiente de 3 paradas com joelho FORTE (o meio desvia ~64/255 da reta ponta a ponta),
+ *     que so fecha se o ajuste recuperar a parada do meio;
+ *   - bordas antisserrilhadas, que e de onde sai a precisao subpixel. */
+function desenhaAmostra() {
+  const L = 480;
+  const c = document.createElement('canvas'); c.width = L; c.height = L;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const grad = g.createLinearGradient(70, 40, 410, 440);
+  grad.addColorStop(0, '#0b5563'); grad.addColorStop(0.5, '#2a8f8a'); grad.addColorStop(1, '#c9d94a');
+  g.fillStyle = grad;
+  g.beginPath();
+  g.moveTo(240, 44);                                     // a ponta: canto duro
+  g.bezierCurveTo(298, 152, 420, 236, 420, 308);
+  g.arc(240, 308, 180, 0, Math.PI, false);               // a barriga: curva lisa
+  g.bezierCurveTo(60, 236, 182, 152, 240, 44);
+  g.closePath();
+  g.moveTo(310, 308); g.arc(240, 308, 70, 0, Math.PI * 2); // o buraco
+  g.fill('evenodd');
+  return { canvas: c, L };
+}
+
+async function carregaAmostra() {
+  const { canvas, L } = desenhaAmostra();
+  const bytes = await new Promise((ok) => {
+    try { canvas.toBlob((b) => ok(b ? b.size : 0), 'image/png'); } catch { ok(0); }
+  });
+  est.nome = 'exemplo.png'; est.bytesEntrada = bytes; est.modo = 'tracar';
+  est.rgba = canvas.getContext('2d').getImageData(0, 0, L, L).data;
+  est.w = L; est.h = L; est.forcar = false; est.rasterRef = null; est.raizSvg = null;
+  el.rotEntrada.textContent = `exemplo embutido \u00b7 ${L}\u00d7${L}`;
+  el.palcoA.innerHTML = ''; el.palcoA.appendChild(canvas);
+  modoNaTela('tracar');
+  await tracar();
+  el.avisos.insertAdjacentHTML('afterbegin', '<div class="aviso">Este &eacute; um <b>exemplo ' +
+    'embutido</b>, desenhado nesta p&aacute;gina para o app abrir mostrando o que faz. ' +
+    'Arraste a sua imagem para substitu&iacute;-lo.</div>');
+}
+
+/* ---------- ligacoes ---------- */
+
+let timer;
+const reagenda = () => { clearTimeout(timer); timer = setTimeout(() => {
+  if (est.modo === 'tracar') tracar(); }, 450); };
+for (const id of ['tol', 'canto', 'cores', 'res']) {
+  const i = $('#' + id);
+  const rot = { tol: '#vTol', canto: '#vCanto', cores: '#vCores', res: '#vRes' }[id];
+  const pinta = () => { $(rot).textContent = i.value; };
+  i.addEventListener('input', () => { pinta(); reagenda(); });
+  pinta();
+}
+el.chkMargem.addEventListener('change', () => { if (est.modo === 'extrair') extrair(); });
+el.selElemento.addEventListener('change', () => extrair());
+$('#btForcar').addEventListener('click', () => { est.forcar = true; tracar(); });
+document.querySelectorAll('.abas button').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('.abas button').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+  est.vista = b.dataset.vista; mostraSaida();
+}));
+$('#btAbrir').addEventListener('click', () => el.arquivo.click());
+el.alvo.addEventListener('click', () => el.arquivo.click());
+el.arquivo.addEventListener('change', (e) => { if (e.target.files[0]) recebe(e.target.files[0]); });
+for (const ev of ['dragenter', 'dragover']) document.addEventListener(ev, (e) => {
+  e.preventDefault(); el.alvo.classList.add('sobre'); });
+for (const ev of ['dragleave', 'drop']) document.addEventListener(ev, (e) => {
+  e.preventDefault(); el.alvo.classList.remove('sobre'); });
+document.addEventListener('drop', (e) => {
+  const fs = [...(e.dataTransfer?.files || [])];
+  if (!fs.length) return;
+  // svg primeiro: se vierem os dois juntos, o vetor manda e o raster vira gabarito
+  const svg = fs.find((f) => /svg/i.test(f.type) || /\.svg$/i.test(f.name));
+  (async () => { if (svg) { await recebe(svg); const r = fs.find((f) => f !== svg); if (r) await recebe(r); }
+                 else await recebe(fs[0]); })();
+});
+/* Entregar o arquivo tem DOIS caminhos, porque esta pagina vive em dois lugares:
+ *  - como arquivo local (duplo clique): `<a download>` funciona;
+ *  - hospedada num visualizador: o navegador inutiliza `<a download>` SEM avisar — inclusive
+ *    href blob:/data: — e entregar arquivo passa pela capacidade `downloads`, que mostra ao
+ *    leitor uma confirmacao com nome e tamanho antes de salvar.
+ * Num conversor, entregar o resultado E o recurso principal; um botao morto seria o pior
+ * defeito possivel. Por isso o app descobre em qual dos dois esta, em vez de supor.
+ * `claude.use()` nunca resolve na primeira passada sincrona, e `window.claude` pode nao existir:
+ * a pagina renderiza sem ele e o caminho acende quando (e se) resolver. */
+const emIframe = (() => { try { return window.self !== window.top; } catch { return true; } })();
+let salvarNaPlataforma = null;
+(async () => {
+  try {
+    salvarNaPlataforma = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+  } catch { salvarNaPlataforma = null; }
+  if (!salvarNaPlataforma && emIframe) {
+    el.avisoCopia.textContent = 'esta copia hospedada nao pode entregar arquivo; use Copiar codigo.';
+  }
+})();
+
+const nomeDeSaida = () => (est.nome || 'vetor').replace(/\.[^.]+$/, '') + '.svg';
+const recado = (t) => { el.avisoCopia.textContent = t; setTimeout(() => {
+  if (el.avisoCopia.textContent === t) el.avisoCopia.textContent = ''; }, 4000); };
+
+$('#btBaixar').addEventListener('click', async () => {
+  if (!est.svg) return;
+  if (salvarNaPlataforma) {
+    try {
+      const r = await salvarNaPlataforma.save({ filename: nomeDeSaida(), data: est.svg });
+      recado(r && r.status === 'delivered' ? 'entregue.' : 'salvo.');
+    } catch (e) {
+      const cod = e && e.code;
+      // `declined` nao se repete por conta propria; `rate_limited` pede espera
+      recado({
+        declined: 'download recusado.',
+        rate_limited: 'ja ha um pedido aberto; tente de novo em instantes.',
+        too_large: 'arquivo grande demais para o destino escolhido.',
+      }[cod] || ('nao deu para salvar aqui' + (cod ? ' (' + cod + ')' : '') + '; use Copiar codigo.'));
+    }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = urlDeSvg(est.svg); a.download = nomeDeSaida();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+});
+$('#btCopiar').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(est.svg); recado('copiado.'); }
+  catch { recado('a area de transferencia foi negada; use Ver codigo e copie a mao.'); }
+});
+$('#btCodigo').addEventListener('click', () => el.codigo.classList.toggle('oculto'));
+// `data-theme` com os valores dark/light: e o MESMO atributo que o hospedeiro marca na raiz
+// quando o leitor escolhe um tema. Com um atributo proprio, a escolha do leitor era ignorada.
+$('#btTema').addEventListener('click', () => {
+  const r = document.documentElement;
+  const atual = r.getAttribute('data-theme');
+  const escuro = atual ? atual === 'dark' : matchMedia('(prefers-color-scheme:dark)').matches;
+  r.setAttribute('data-theme', escuro ? 'light' : 'dark');
+});
+
+carregaAmostra();
+</script>

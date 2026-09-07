@@ -1,0 +1,74 @@
+<!doctype html><meta charset="utf-8"><title>mesa de teste</title>
+<pre id="out">rodando...</pre>
+<script type="module">
+import { vetorizar } from './vetorizar.js';
+
+const log = [];
+const p = (...a) => log.push(a.join(' '));
+
+/** Rasteriza uma imagem (url ou string de svg) num canvas w x h e devolve os pixels. */
+async function pixels(fonte, w, h, ehSvg = false) {
+  const url = ehSvg ? URL.createObjectURL(new Blob([fonte], { type: 'image/svg+xml' })) : fonte;
+  const img = new Image();
+  await new Promise((ok, err) => { img.onload = ok; img.onerror = () => err(new Error('falhou: ' + fonte.slice(0,80))); img.src = url; });
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.clearRect(0, 0, w, h);
+  g.drawImage(img, 0, 0, w, h);
+  const d = g.getImageData(0, 0, w, h).data;
+  if (ehSvg) URL.revokeObjectURL(url);
+  return d;
+}
+
+/** Compara dois quadros RGBA: divergencia de silhueta e desvio de cor no interior opaco. */
+function compara(A, B, w, h) {
+  let tintaA = 0, tintaB = 0, difForma = 0;
+  const err = [];
+  for (let i = 0; i < w * h; i++) {
+    const aA = A[i*4+3] > 127, aB = B[i*4+3] > 127;
+    if (aA) tintaA++; if (aB) tintaB++;
+    if (aA !== aB) difForma++;
+    if (A[i*4+3] === 255 && B[i*4+3] === 255) {
+      err.push(Math.max(Math.abs(A[i*4]-B[i*4]), Math.abs(A[i*4+1]-B[i*4+1]), Math.abs(A[i*4+2]-B[i*4+2])));
+    }
+  }
+  err.sort((a, b) => a - b);
+  return {
+    difForma, pctTinta: tintaA ? difForma / tintaA * 100 : 0,
+    cor: err.length ? { mediana: err[err.length>>1], p95: err[Math.floor(err.length*0.95)], max: err[err.length-1] } : null,
+    amostrasCor: err.length,
+  };
+}
+
+try {
+  const W = 1200, H = 1095;
+  const orig = await pixels('logo.png', W, H);
+
+  // --- referencia: o vetor VERDADEIRO extraido hoje (o teto de qualidade) ---
+  const svgVerd = await (await fetch('hive-icone.svg')).text();
+  const verd = await pixels(svgVerd, W, H, true);
+  const cV = compara(orig, verd, W, H);
+  p('=== TETO: vetor verdadeiro (extraido do logofull) vs PNG ===');
+  p('  forma:', cV.difForma, 'px =', cV.pctTinta.toFixed(3) + '% da tinta');
+  p('  cor  : mediana', cV.cor.mediana, 'p95', cV.cor.p95, 'max', cV.cor.max, '| bytes', svgVerd.length);
+
+  // --- o tracador, em algumas tolerancias ---
+  for (const tol of [0.2, 0.4, 0.8, 1.5]) {
+    const t0 = performance.now();
+    const { svg, diag } = vetorizar(orig, W, H, { tol });
+    const ms = performance.now() - t0;
+    const rast = await pixels(svg, W, H, true);
+    const c = compara(orig, rast, W, H);
+    const cVsVerd = compara(verd, rast, W, H);
+    p('');
+    p('=== TRACADO tol=' + tol + ' ===  modo:', diag.modo, '| nos:', diag.nos, '| bytes:', svg.length, '|', ms.toFixed(0) + 'ms');
+    p('  pintura:', diag.camadas.map(c => c.pintura + ' (' + (c.paradas || '') + ')').join(', '),
+      '| residuo do modelo p95', diag.camadas[0].res.p95.toFixed(2));
+    p('  vs PNG    -> forma', c.pctTinta.toFixed(3) + '% da tinta | cor med', c.cor.mediana, 'p95', c.cor.p95, 'max', c.cor.max);
+    p('  vs VETOR  -> forma', cVsVerd.pctTinta.toFixed(3) + '% da tinta | cor med', cVsVerd.cor.mediana, 'p95', cVsVerd.cor.p95, 'max', cVsVerd.cor.max);
+    if (tol === 0.4) p('  gradiente recuperado:', (svg.match(/<linearGradient[^>]*>/) || ['(nenhum)'])[0]);
+  }
+} catch (e) { p('ERRO:', e.message, e.stack); }
+
+document.getElementById('out').textContent = log.join('\n');
+</script>

@@ -1,0 +1,39 @@
+<!doctype html><meta charset="utf-8"><pre id="out">rodando</pre>
+<script type="module">
+import { vetorizar, analisa } from './vetorizar.js';
+const log=[]; const p=(...a)=>log.push(a.join(' '));
+
+function mk(w,h,fn){const a=new Uint8ClampedArray(w*h*4);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const c=fn(x,y),i=(y*w+x)*4;
+    a[i]=c[0];a[i+1]=c[1];a[i+2]=c[2];a[i+3]=c.length>3?c[3]:255;} return a;}
+// ruido de valor multi-oitava, deterministico
+const hash=(x,y)=>{const s=Math.sin(x*127.1+y*311.7)*43758.5453; return s-Math.floor(s);};
+const suave=(x,y)=>{const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+  const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+  return hash(xi,yi)*(1-u)*(1-v)+hash(xi+1,yi)*u*(1-v)+hash(xi,yi+1)*(1-u)*v+hash(xi+1,yi+1)*u*v;};
+const fbm=(x,y)=>{let s=0,a=0.5,f=1/8; for(let o=0;o<5;o++){s+=a*suave(x*f,y*f);a/=2;f*=2;} return s;};
+
+const casos=[
+  ['FOTO sintetica (textura fina em toda parte)', 420, 320, (x,y)=>{
+    const n=fbm(x,y), m=fbm(x+99,y+77);
+    return [Math.round(90+120*n+40*m), Math.round(70+140*m), Math.round(60+150*n*m)];}],
+  ['ARTE CHAPADA com 12 cores (nao pode ser recusada)', 420, 320, (x,y)=>{
+    const k=(Math.floor(x/35)*3+Math.floor(y/40)*5)%12;
+    return [[220,40,40],[40,120,220],[250,200,40],[30,160,90],[150,60,200],[240,140,30],
+            [20,20,20],[245,245,245],[120,120,120],[200,90,140],[60,200,200],[140,180,40]][k];}],
+  ['DEGRADE liso de tela cheia (nao pode ser recusado)', 420, 320, (x,y)=>
+    [Math.round(240-x*0.4), Math.round(60+y*0.5), Math.round(120+x*0.2)]],
+];
+for(const [nome,w,h,fn] of casos){
+  const d=mk(w,h,fn);
+  const info=analisa(d,w,h);
+  const {svg,diag}=vetorizar(d,w,h,{tol:0.6});
+  p('### '+nome);
+  p('    cores='+info.cores+' chapeza='+info.chapeza.toFixed(3)+' -> modo '+info.modo);
+  if(!svg) p('    RECUSADO -> '+diag.avisos.join(' '));
+  else p('    vetorizado: K='+diag.K+' nos='+diag.nos+' '+(svg.length/1024).toFixed(1)+'KB'+
+         (diag.avisos.length?' | AVISO: '+diag.avisos.join(' '):''));
+  p('');
+}
+document.getElementById('out').textContent=log.join('\n');
+</script>

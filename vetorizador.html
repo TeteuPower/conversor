@@ -1,0 +1,1710 @@
+<!-- Vetorizador — arquivo unico, sem dependencia externa.
+     Gerado por montar.py a partir dos modulos: contorno.js, curvas.js, preenchimento.js, vetorizar.js, extrair.js + app-fonte.html.
+     Abra com duplo clique. Nada sai desta maquina: a imagem e processada no proprio navegador. -->
+<title>Vetorizador</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Paleta de INSTRUMENTO, e a escolha e do assunto: este app existe para medir cor, entao a
+   propria interface nao pode tingir a vizinhanca da amostra. O acento e um teal fundo, longe
+   tanto do ambar do estado "aceitavel" quanto das laranjas e vermelhos que aparecem na maioria
+   das marcas que se vetorizam. O cinza tem viés frio de proposito — cinza puro le como cinza
+   nao escolhido.
+   Tres estados de tema, nao dois: escolha explicita marca data-theme na raiz; o padrao "sistema"
+   nao marca nada e so prefers-color-scheme separa. Todo token nasce no :root simples. */
+:root{
+  --fundo:#f4f6f7; --painel:#ffffff; --afundado:#eceff1; --linha:#dde3e6;
+  --texto:#121a1e; --fraco:#5a6a72;
+  --acento:#0f6d7a; --acento-fraco:#e6f2f3; --acento-forte:#0a5460; --sobre-acento:#ffffff;
+  --bom:#12744a; --meio:#8a5c00; --ruim:#a32020;
+  --bom-fundo:#e7f4ec; --meio-fundo:#fbf2df; --ruim-fundo:#faeaea;
+  --sombra:0 1px 2px #0f1a1e0a, 0 4px 14px #0f1a1e08;
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --fundo:#0f1417; --painel:#171e22; --afundado:#121a1d; --linha:#2a353a;
+  --texto:#e6ecee; --fraco:#93a3ab;
+  --acento:#4fc3cf; --acento-fraco:#102b30; --acento-forte:#7ad6e0; --sobre-acento:#08191c;
+  --bom:#5fd39b; --meio:#e0b155; --ruim:#f08a8a;
+  --bom-fundo:#10241b; --meio-fundo:#241d0d; --ruim-fundo:#2a1414;
+  --sombra:0 1px 2px #0006, 0 4px 16px #0004;
+}}
+:root[data-theme="dark"]{
+  --fundo:#0f1417; --painel:#171e22; --afundado:#121a1d; --linha:#2a353a;
+  --texto:#e6ecee; --fraco:#93a3ab;
+  --acento:#4fc3cf; --acento-fraco:#102b30; --acento-forte:#7ad6e0; --sobre-acento:#08191c;
+  --bom:#5fd39b; --meio:#e0b155; --ruim:#f08a8a;
+  --bom-fundo:#10241b; --meio-fundo:#241d0d; --ruim-fundo:#2a1414;
+  --sombra:0 1px 2px #0006, 0 4px 16px #0004;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--texto);
+  font:400 14px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+h1,h2{text-wrap:balance}
+:focus-visible{outline:2px solid var(--acento);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+header{display:flex;align-items:center;gap:14px;padding:13px 20px;border-bottom:1px solid var(--linha);
+  background:var(--painel);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+h1{font-size:15px;font-weight:600;margin:0;letter-spacing:-.015em}
+.sub{color:var(--fraco);font-size:12.5px}
+.cresce{flex:1}
+button{font:500 13px/1 var(--sans);padding:8px 13px;border:1px solid var(--linha);border-radius:6px;
+  background:var(--painel);color:var(--texto);cursor:pointer;transition:border-color .12s,color .12s}
+button:hover:not(:disabled){border-color:var(--acento);color:var(--acento)}
+button:disabled{opacity:.4;cursor:default}
+button.primario{background:var(--acento);border-color:var(--acento);color:var(--sobre-acento)}
+button.primario:hover:not(:disabled){background:var(--acento-forte);border-color:var(--acento-forte);
+  color:var(--sobre-acento)}
+main{padding:18px 20px 40px;max-width:1360px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+
+/* Nao tudo e cartao: o painel de dado tem borda e sombra porque e objeto que se le;
+   a faixa de aviso ganha so uma barra lateral; o palco e afundado, nao elevado. */
+.cartao{background:var(--painel);border:1px solid var(--linha);border-radius:10px;
+  box-shadow:var(--sombra);overflow:hidden}
+.cartao>h2{font:600 11px/1 var(--sans);text-transform:uppercase;letter-spacing:.09em;
+  color:var(--fraco);margin:0;padding:12px 15px;border-bottom:1px solid var(--linha)}
+.cartao>.corpo{padding:15px;display:flex;flex-direction:column;gap:12px}
+
+#alvo{border:1.5px dashed var(--linha);border-radius:10px;padding:18px 20px;text-align:center;
+  color:var(--fraco);background:var(--painel);cursor:pointer;transition:border-color .12s,background .12s}
+#alvo:hover{border-color:var(--acento)}
+#alvo.sobre{border-color:var(--acento);background:var(--acento-fraco);color:var(--acento)}
+
+.telas{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--linha)}
+@media (max-width:860px){.telas{grid-template-columns:1fr}}
+.tela{background:var(--painel);min-width:0;display:flex;flex-direction:column}
+.tela>.rot{display:flex;align-items:center;gap:9px;padding:9px 13px;border-bottom:1px solid var(--linha);
+  font:600 10.5px/1 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--fraco)}
+.palco{position:relative;flex:1;overflow:auto;min-height:340px;max-height:min(56vh,520px);background:var(--afundado);
+  background-image:linear-gradient(45deg,#7f8c9314 25%,#0000 25%,#0000 75%,#7f8c9314 75%),
+                   linear-gradient(45deg,#7f8c9314 25%,#0000 25%,#0000 75%,#7f8c9314 75%);
+  background-size:18px 18px;background-position:0 0,9px 9px;display:grid;place-items:center;padding:12px}
+.palco>*{width:min(100%,440px);height:auto;display:block}
+.palco>img,.palco>canvas{image-rendering:pixelated}
+.abas{display:flex;gap:3px;margin-left:auto}
+.abas button{padding:4px 10px;font-size:11px;border-radius:5px;text-transform:none;letter-spacing:0}
+.abas button[aria-pressed="true"]{background:var(--acento);border-color:var(--acento);color:var(--sobre-acento)}
+
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 11px;border-bottom:1px solid var(--linha);vertical-align:baseline}
+th{color:var(--fraco);font-weight:500;width:1%;white-space:nowrap}
+tr:last-child th,tr:last-child td{border-bottom:0}
+td{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.bom{color:var(--bom)} .meio{color:var(--meio)} .ruim{color:var(--ruim)}
+/* Estado tambem na FORMA, nao so no numero: o pino diz o veredicto sem o leitor
+   precisar saber que 0,4% e bom e 4% nao e. */
+.pino{font:600 10px/1 var(--sans);text-transform:uppercase;letter-spacing:.07em;
+  padding:3px 7px;border-radius:20px;margin-right:9px;white-space:nowrap;
+  display:inline-block;vertical-align:1px}
+.pino.bom{background:var(--bom-fundo);color:var(--bom)}
+.pino.meio{background:var(--meio-fundo);color:var(--meio)}
+.pino.ruim{background:var(--ruim-fundo);color:var(--ruim)}
+
+.grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:16px}
+label.campo{display:block;font-size:12.5px;color:var(--fraco);margin-bottom:5px}
+label.campo b{color:var(--texto);font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--acento);margin:0}
+.dica{font-size:12px;color:var(--fraco);line-height:1.45;max-width:62ch}
+.aviso{border-left:2px solid var(--acento);background:var(--acento-fraco);padding:9px 12px;
+  border-radius:0 6px 6px 0;font-size:12.5px;line-height:1.5}
+.aviso+.aviso{margin-top:7px}
+.recusa{border-left-color:var(--ruim);background:var(--ruim-fundo)}
+pre.codigo{margin:0;padding:12px;background:var(--afundado);border:1px solid var(--linha);border-radius:7px;
+  font-family:var(--mono);font-size:11.5px;max-height:230px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.chip{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border:1px solid var(--linha);border-radius:20px;
+  display:inline-flex;align-items:center;gap:5px}
+.amostra{width:9px;height:9px;border-radius:50%;box-shadow:inset 0 0 0 1px #0002}
+.oculto{display:none!important}
+#estado{font:500 12px/1 var(--mono);color:var(--acento)}
+select{font:400 13px/1.2 var(--sans);padding:7px 9px;border:1px solid var(--linha);border-radius:6px;
+  background:var(--painel);color:var(--texto);max-width:100%}
+.linhaFlex{display:flex;gap:11px;align-items:center;flex-wrap:wrap}
+.rodape{font-size:11.5px;color:var(--fraco);text-align:center;padding-top:4px}
+</style>
+
+<header>
+  <h1>Vetorizador</h1>
+  <span class="sub" id="assinatura">imagem &rarr; SVG, com medi&ccedil;&atilde;o de fidelidade</span>
+  <span id="estado"></span>
+  <span class="cresce"></span>
+  <button id="btTema" title="Alternar tema">Tema</button>
+  <button id="btAbrir" class="primario">Abrir arquivo</button>
+  <input type="file" id="arquivo" class="oculto" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/svg+xml,.svg">
+</header>
+
+<main>
+  <div id="alvo">
+    <strong>Arraste uma imagem aqui</strong>, ou clique para escolher.<br>
+    <span style="font-size:12.5px">
+      PNG, JPEG, WebP, GIF &mdash; ou um <b>SVG</b>, para extrair um elemento dele em vez de tra&ccedil;ar.
+    </span>
+  </div>
+
+  <div id="painelRecusa" class="cartao oculto">
+    <h2>N&atilde;o vetorizado</h2>
+    <div class="corpo"><div id="txtRecusa" class="aviso recusa"></div>
+      <button id="btForcar">Vetorizar mesmo assim</button>
+      <div class="dica">For&ccedil;ar produz um SVG com milhares de n&oacute;s, provavelmente maior que o
+        arquivo original e com menos detalhe. &Uacute;til apenas para inspe&ccedil;&atilde;o.</div>
+    </div>
+  </div>
+
+  <div id="painelExtrair" class="cartao oculto">
+    <h2>O vetor j&aacute; existe &mdash; extrair</h2>
+    <div class="corpo">
+      <div class="aviso">Este arquivo <b>j&aacute; &eacute; vetorial</b>. Extrair o elemento certo d&aacute;
+        fidelidade absoluta; tra&ccedil;ar um raster d&aacute; aproxima&ccedil;&atilde;o. Escolha o elemento:</div>
+      <div class="linhaFlex">
+        <select id="selElemento"></select>
+        <label class="linhaFlex" style="gap:5px"><input type="checkbox" id="chkMargem"> respiro de 4%</label>
+        <span class="dica" id="infoCaixa"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <div class="telas">
+      <div class="tela">
+        <div class="rot">Entrada <span id="rotEntrada" class="mono" style="text-transform:none"></span></div>
+        <div class="palco" id="palcoA"></div>
+      </div>
+      <div class="tela">
+        <div class="rot">Sa&iacute;da
+          <span id="rotSaida" class="mono" style="text-transform:none"></span>
+          <span class="abas">
+            <button data-vista="svg" aria-pressed="true">SVG</button>
+            <button data-vista="dif" aria-pressed="false">Diferen&ccedil;a</button>
+          </span>
+        </div>
+        <div class="palco" id="palcoB"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao" id="painelRelatorio">
+    <h2>Fidelidade medida</h2>
+    <div class="corpo">
+      <div id="avisos"></div>
+      <table id="tabela"></table>
+      <div class="dica" style="margin-top:9px">
+        A medi&ccedil;&atilde;o rasteriza o SVG produzido no mesmo tamanho da entrada e compara pixel a pixel.
+        <b>Cor no interior</b> mede o erro do modelo de pintura; <b>cor na aresta</b> mede posicionamento
+        subpixel &mdash; numa fronteira preto/amarelo, meio pixel de deslocamento j&aacute; d&aacute; desvio de 200/255.
+        Somar as duas faria um ajuste perfeito parecer ruim.
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao" id="painelAjustes">
+    <h2>Ajustes</h2>
+    <div class="corpo grade" id="ajustes">
+      <div>
+        <label class="campo">Toler&acirc;ncia da curva: <b id="vTol"></b> px</label>
+        <input type="range" id="tol" min="0.1" max="3" step="0.1" value="0.6">
+        <div class="dica">Desvio m&aacute;ximo aceito entre a B&eacute;zier e o contorno. Menor = mais fiel e mais n&oacute;s.</div>
+      </div>
+      <div>
+        <label class="campo">Canto a partir de: <b id="vCanto"></b>&deg;</label>
+        <input type="range" id="canto" min="15" max="90" step="1" value="42">
+        <div class="dica">Virada m&iacute;nima para o ajuste quebrar a curva e preservar a quina.</div>
+      </div>
+      <div>
+        <label class="campo">Classes de cor no m&aacute;ximo: <b id="vCores"></b></label>
+        <input type="range" id="cores" min="1" max="24" step="1" value="12">
+        <div class="dica">Teto da busca. O n&uacute;mero usado &eacute; decidido pelo res&iacute;duo, n&atilde;o por este limite.</div>
+      </div>
+      <div>
+        <label class="campo">Res&iacute;duo aceit&aacute;vel: <b id="vRes"></b>/255</label>
+        <input type="range" id="res" min="1" max="30" step="1" value="6">
+        <div class="dica">Quando o modelo de pintura de uma classe passa disso, o app usa mais classes.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cartao">
+    <h2>Sa&iacute;da</h2>
+    <div class="corpo">
+      <div class="linhaFlex" style="margin-bottom:11px">
+        <button id="btBaixar" class="primario" disabled>Baixar SVG</button>
+        <button id="btCopiar" disabled>Copiar c&oacute;digo</button>
+        <button id="btCodigo" disabled>Ver c&oacute;digo</button>
+        <span id="avisoCopia" class="dica"></span>
+      </div>
+      <pre class="codigo oculto" id="codigo"></pre>
+    </div>
+  </div>
+
+  <p class="rodape">Tudo roda no seu navegador: a imagem n&atilde;o &eacute; enviada a servidor nenhum.</p>
+</main>
+
+<script type="module">
+/* ==================== contorno.js ==================== */
+/* contorno.js — do campo de cobertura ao contorno subpixel.
+ *
+ * Por que campo CONTINUO e nao mascara binaria: uma mascara binaria so sabe "dentro/fora" no
+ * centro do pixel, e o contorno sai em escada de 1px. O antisserrilhado da imagem de entrada
+ * carrega a posicao real da borda com precisao subpixel (um pixel 40% coberto tem alfa 0.4);
+ * marching squares no nivel 0.5 recupera essa posicao por interpolacao. E o que separa um
+ * tracado que parece vetor de um que parece pixel ampliado.
+ */
+
+/** Campo com anel de "fora" em volta. Sem isso, forma que toca a borda da imagem gera loop ABERTO
+ *  (as celulas so cobrem ate w-2) e o encadeamento quebra. O anel fecha o contorno exatamente na
+ *  borda: a interpolacao entre o centro virtual em -0.5 (valor 0) e o centro 0.5 (valor 1) cai em 0. */
+function comMoldura(campo, w, h, fora = 0) {
+  const W = w + 2, H = h + 2;
+  const out = new Float32Array(W * H).fill(fora);
+  for (let y = 0; y < h; y++) out.set(campo.subarray(y * w, y * w + w), (y + 1) * W + 1);
+  return { campo: out, w: W, h: H, desloca: -1 };   // desloca: centro do pixel (x,y) fica em x+0.5+desloca
+}
+
+/* Chaves de aresta da grade: cada cruzamento mora numa aresta unica entre centros vizinhos.
+ * Encadear por CHAVE (e nao por coordenada float) e exato — duas celulas vizinhas produzem
+ * literalmente a mesma chave, sem depender de igualdade de ponto flutuante. */
+const kH = (i, j) => 2 * (j * 65536 + i);        // aresta horizontal centro(i,j)-(i+1,j)
+const kV = (i, j) => 2 * (j * 65536 + i) + 1;    // aresta vertical   centro(i,j)-(i,j+1)
+
+/** Marching squares no nivel `nivel`. Devolve loops fechados de pontos em coordenada de PIXEL
+ *  (centro do pixel (x,y) = x+0.5, y+0.5), orientados com o lado "dentro" a esquerda. */
+function contornos(campo, w, h, nivel = 0.5, desloca = 0) {
+  const F = (i, j) => campo[j * w + i];
+  const cx = (i) => i + 0.5 + desloca;
+
+  // ponto de cruzamento numa aresta, por interpolacao linear
+  const pH = (i, j) => { const a = F(i, j), b = F(i + 1, j); return [cx(i) + (nivel - a) / (b - a), cx(j)]; };
+  const pV = (i, j) => { const a = F(i, j), b = F(i, j + 1); return [cx(i), cx(j) + (nivel - a) / (b - a)]; };
+
+  const inicio = new Map();   // chave da aresta de PARTIDA -> { chaveFim, p0, p1 }
+
+  for (let j = 0; j < h - 1; j++) {
+    for (let i = 0; i < w - 1; i++) {
+      const v = [F(i, j), F(i + 1, j), F(i + 1, j + 1), F(i, j + 1)];
+      const d = v.map((x) => x >= nivel);
+      const b = (d[0] ? 1 : 0) | (d[1] ? 2 : 0) | (d[2] ? 4 : 0) | (d[3] ? 8 : 0);
+      if (b === 0 || b === 15) continue;
+
+      // arestas na ordem do passeio c0->c1->c2->c3->c0
+      const ar = [
+        { k: kH(i, j),     p: pH(i, j)     },
+        { k: kV(i + 1, j), p: pV(i + 1, j) },
+        { k: kH(i, j + 1), p: pH(i, j + 1) },
+        { k: kV(i, j),     p: pV(i, j)     },
+      ];
+      // regra de orientacao: no passeio, fora->dentro ABRE segmento, dentro->fora FECHA.
+      // (deixa o lado "dentro" a esquerda do sentido de caminhada)
+      const abre = [], fecha = [];
+      for (let e = 0; e < 4; e++) {
+        const de = d[e], para = d[(e + 1) & 3];
+        if (!de && para) abre.push(e);
+        else if (de && !para) fecha.push(e);
+      }
+
+      let pares;
+      if (abre.length === 1) {
+        pares = [[abre[0], fecha[0]]];
+      } else {
+        // sela (b===5 ou b===10): a media da celula decide se o "dentro" passa pelo centro
+        const centroDentro = (v[0] + v[1] + v[2] + v[3]) / 4 >= nivel;
+        // cada segmento isola UM canto; com centro dentro, isola os cantos de FORA, e vice-versa
+        pares = centroDentro
+          ? [[abre[0], fecha[0]], [abre[1], fecha[1]]]
+          : [[abre[0], fecha[1]], [abre[1], fecha[0]]];
+        // normaliza: garante que cada par une arestas ADJACENTES (compartilham um canto)
+        pares = pares.map(([a, f]) => (((a + 1) & 3) === f || ((f + 1) & 3) === a) ? [a, f] : null).filter(Boolean);
+        if (pares.length !== 2) {
+          pares = centroDentro ? [[abre[0], fecha[1]], [abre[1], fecha[0]]] : [[abre[0], fecha[0]], [abre[1], fecha[1]]];
+        }
+      }
+      for (const [a, f] of pares) {
+        inicio.set(ar[a].k, { fim: ar[f].k, p0: ar[a].p, p1: ar[f].p });
+      }
+    }
+  }
+
+  // encadeia: de um segmento que termina na aresta K, o proximo e o que PARTE de K
+  const loops = [];
+  const vistos = new Set();
+  for (const k0 of inicio.keys()) {
+    if (vistos.has(k0)) continue;
+    const pts = [];
+    let k = k0, guarda = 0;
+    while (k !== undefined && !vistos.has(k) && guarda++ < 4e6) {
+      vistos.add(k);
+      const seg = inicio.get(k);
+      if (!seg) break;
+      pts.push(seg.p0);
+      k = seg.fim;
+    }
+    if (pts.length >= 3) loops.push(pts);
+  }
+  return loops;
+}
+
+/** Area assinada (shoelace). Em tela (y para baixo), positiva = sentido horario visual. */
+function area(pts) {
+  let s = 0;
+  for (let i = 0, n = pts.length; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % n];
+    s += a[0] * b[1] - b[0] * a[1];
+  }
+  return s / 2;
+}
+
+/* ==================== curvas.js ==================== */
+/* curvas.js — polilinha densa -> Beziers cubicas.
+ *
+ * Duas etapas, e a ORDEM importa: cantos primeiro, ajuste depois. Se ajustar antes, a curva
+ * arredonda o canto (a Bezier e suave por construcao) e o desenho perde a quina. Se simplificar
+ * antes (Douglas-Peucker no contorno cru), a posicao do canto ja vem deslocada.
+ *
+ * Cantos sao detectados no contorno DENSO com janela de raio fixo em px — angulo de virada medido
+ * entre P[i-k]->P[i] e P[i]->P[i+k]. Medir entre vizinhos imediatos nao serve: num contorno
+ * subpixel os passos sao curtos e o ruido de meio nivel de alfa vira "canto" em todo lugar.
+ */
+
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+const add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+const mul = (a, s) => [a[0] * s, a[1] * s];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1];
+const norm = (a) => { const n = Math.hypot(a[0], a[1]) || 1; return [a[0] / n, a[1] / n]; };
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+/** Indices de canto num loop fechado. `grausMin` = virada minima; `janela` = raio em pontos. */
+function cantos(pts, grausMin = 42, janela = 4) {
+  const n = pts.length;
+  if (n < janela * 2 + 3) return [];
+  // `virada` e o cosseno do angulo de VIRADA: 1 = reto, 0 = 90 graus, -1 = volta completa.
+  // Logo o limiar e cos(grausMin) — nao cos(180-grausMin), que e a convencao do angulo INTERNO
+  // e exigia virada de 138 graus para aceitar uma quina de 90.
+  const lim = Math.cos(grausMin * Math.PI / 180);
+  const virada = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = norm(sub(pts[i], pts[(i - janela + n) % n]));
+    const b = norm(sub(pts[(i + janela) % n], pts[i]));
+    virada[i] = dot(a, b);                                   // 1 = reto, -1 = volta
+  }
+  // supressao de nao-maximo: dentro de uma vizinhanca, so o ponto de virada MAIS forte vira canto
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (virada[i] > lim) continue;
+    let melhor = true;
+    for (let d = -janela; d <= janela; d++) {
+      if (d === 0) continue;
+      const j = (i + d + n) % n;
+      if (virada[j] < virada[i] || (virada[j] === virada[i] && j < i)) { melhor = false; break; }
+    }
+    if (melhor) out.push(i);
+  }
+  return out;
+}
+
+/* ---- Schneider: ajuste de Bezier cubica por minimos quadrados ---- */
+
+const B0 = (u) => (1 - u) ** 3, B1 = (u) => 3 * u * (1 - u) ** 2,
+      B2 = (u) => 3 * u * u * (1 - u), B3 = (u) => u ** 3;
+
+const naBezier = (bz, u) =>
+  add(add(mul(bz[0], B0(u)), mul(bz[1], B1(u))), add(mul(bz[2], B2(u)), mul(bz[3], B3(u))));
+
+function parametriza(P, ini, fim) {
+  const u = [0];
+  for (let i = ini + 1; i <= fim; i++) u.push(u[u.length - 1] + dist(P[i], P[i - 1]));
+  const T = u[u.length - 1] || 1;
+  return u.map((v) => v / T);
+}
+
+/** Controles internos por minimos quadrados, dadas as tangentes das pontas. */
+function geraBezier(P, ini, fim, u, t1, t2) {
+  const p0 = P[ini], p3 = P[fim];
+  let c00 = 0, c01 = 0, c11 = 0, x0 = 0, x1 = 0;
+  for (let i = 0; i <= fim - ini; i++) {
+    const ui = u[i];
+    const a0 = mul(t1, B1(ui)), a1 = mul(t2, B2(ui));
+    c00 += dot(a0, a0); c01 += dot(a0, a1); c11 += dot(a1, a1);
+    const base = add(mul(p0, B0(ui) + B1(ui)), mul(p3, B2(ui) + B3(ui)));
+    const tmp = sub(P[ini + i], base);
+    x0 += dot(a0, tmp); x1 += dot(a1, tmp);
+  }
+  const det = c00 * c11 - c01 * c01;
+  let al1 = 0, al2 = 0;
+  if (Math.abs(det) > 1e-12) { al1 = (c11 * x0 - c01 * x1) / det; al2 = (c00 * x1 - c01 * x0) / det; }
+  const seg = dist(p0, p3);
+  if (!(al1 > 1e-6) || !(al2 > 1e-6)) { al1 = al2 = seg / 3; }   // degenerado: heuristica da corda
+  return [p0, add(p0, mul(t1, al1)), add(p3, mul(t2, al2)), p3];
+}
+
+function maiorErro(P, ini, fim, bz, u) {
+  let max = 0, split = Math.floor((fim - ini + 1) / 2) + ini;
+  for (let i = 1; i < fim - ini; i++) {
+    const d = dist(naBezier(bz, u[i]), P[ini + i]);
+    if (d * d > max) { max = d * d; split = ini + i; }
+  }
+  return [Math.sqrt(max), split];
+}
+
+/** Refina os parametros u por Newton-Raphson (aproxima cada ponto do seu pe na curva). */
+function reparametriza(P, ini, fim, u, bz) {
+  const d1 = [0, 1, 2].map((i) => mul(sub(bz[i + 1], bz[i]), 3));
+  const d2 = [0, 1].map((i) => mul(sub(d1[i + 1], d1[i]), 2));
+  const emQ = (D, deg, t) => {
+    if (deg === 2) { const mt = 1 - t; return add(add(mul(D[0], mt * mt), mul(D[1], 2 * mt * t)), mul(D[2], t * t)); }
+    return add(mul(D[0], 1 - t), mul(D[1], t));
+  };
+  return u.map((ui, i) => {
+    const p = P[ini + i];
+    const q = sub(naBezier(bz, ui), p);
+    const q1 = emQ(d1, 2, ui), q2 = emQ(d2, 1, ui);
+    const den = dot(q1, q1) + dot(q, q2);
+    if (Math.abs(den) < 1e-12) return ui;
+    const t = ui - dot(q, q1) / den;
+    return t < 0 ? 0 : t > 1 ? 1 : t;
+  });
+}
+
+/** Ajusta P[ini..fim] com o minimo de Beziers para ficar dentro de `tol` px. */
+function ajusta(P, ini, fim, t1, t2, tol, prof = 0) {
+  if (fim - ini === 1) {
+    const d = dist(P[ini], P[fim]) / 3;
+    return [[P[ini], add(P[ini], mul(t1, d)), add(P[fim], mul(t2, d)), P[fim]]];
+  }
+  let u = parametriza(P, ini, fim);
+  let bz = geraBezier(P, ini, fim, u, t1, t2);
+  let [err, split] = maiorErro(P, ini, fim, bz, u);
+  if (err < tol) return [bz];
+  if (err < tol * 4 && prof < 24) {                  // perto: vale refinar antes de dividir
+    for (let k = 0; k < 12; k++) {
+      u = reparametriza(P, ini, fim, u, bz);
+      bz = geraBezier(P, ini, fim, u, t1, t2);
+      [err, split] = maiorErro(P, ini, fim, bz, u);
+      if (err < tol) return [bz];
+    }
+  }
+  if (prof > 28 || split <= ini || split >= fim) return [bz];
+  // tangente central pela media dos vizinhos (suaviza ruido de 1 ponto)
+  const k = Math.min(3, split - ini, fim - split);
+  const tc = norm(sub(P[split - k], P[split + k]));
+  return [
+    ...ajusta(P, ini, split, t1, tc, tol, prof + 1),
+    ...ajusta(P, split, fim, mul(tc, -1), t2, tol, prof + 1),
+  ];
+}
+
+/** Loop fechado -> lista de Beziers, respeitando cantos. */
+function loopParaBeziers(pts, tol = 0.6, grausMin = 42, janela = 4) {
+  const n = pts.length;
+  let cs = cantos(pts, grausMin, janela);
+  // loop liso (sem canto): corta em 2 pontos opostos para ter trechos abertos
+  if (cs.length === 0) cs = [0, n >> 1];
+  if (cs.length === 1) cs = [cs[0], (cs[0] + (n >> 1)) % n];
+  cs.sort((a, b) => a - b);
+
+  const tang = (i, sentido) => {
+    const k = Math.min(3, n - 1);
+    return sentido > 0 ? norm(sub(pts[(i + k) % n], pts[i])) : norm(sub(pts[(i - k + n) % n], pts[i]));
+  };
+
+  const out = [];
+  for (let c = 0; c < cs.length; c++) {
+    const a = cs[c], b = cs[(c + 1) % cs.length];
+    // fatia do canto a ate o canto b (dando a volta quando b < a)
+    const idx = [];
+    for (let i = a; ; i = (i + 1) % n) { idx.push(i); if (i === b) break; if (idx.length > n) break; }
+    if (idx.length < 2) continue;
+    const P = idx.map((i) => pts[i]);
+    out.push(...ajusta(P, 0, P.length - 1, tang(a, +1), tang(b, -1), tol));
+  }
+  return out;
+}
+
+/** Beziers -> trecho de path SVG (M/C/Z), com casas decimais controladas. */
+function beziersParaPath(bzs, casas = 3) {
+  const f = (v) => {
+    const s = v.toFixed(casas);
+    return s.replace(/\.?0+$/, '') || '0';
+  };
+  let d = `M${f(bzs[0][0][0])} ${f(bzs[0][0][1])}`;
+  for (const b of bzs) d += `C${f(b[1][0])} ${f(b[1][1])} ${f(b[2][0])} ${f(b[2][1])} ${f(b[3][0])} ${f(b[3][1])}`;
+  return d + 'Z';
+}
+
+/* ==================== preenchimento.js ==================== */
+/* preenchimento.js — descobre COMO uma regiao e pintada: cor chapada, gradiente linear ou radial.
+ *
+ * Este e o passo que separa este tracador dos comuns. Um tracador padrao trata cor como
+ * rotulo: quantiza a imagem em N cores e cada uma vira um path chapado. Num gradiente isso
+ * produz FAIXAS — dezenas de paths, banding visivel, e o arquivo cresce sem ganhar fidelidade.
+ * Aqui a hipotese e outra: a regiao tem UM modelo de pintura, e o trabalho e estima-lo.
+ *
+ * Modelo linear: a cor depende de uma unica projecao t = p . d. Descobre-se d ajustando um PLANO
+ * por canal (c ~ a*x + b*y + e) — se os tres canais variam ao longo da mesma direcao, e gradiente
+ * linear. O eixo sai do autovetor principal da matriz de espalhamento dos (a,b), que e imune a
+ * sinal: no icone do Hive o verde SOBE e o azul DESCE ao longo do mesmo eixo, e uma media
+ * ingenua dos vetores os cancelaria.
+ */
+
+const clamp255 = (v) => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v));
+
+/** Ajuste de plano c ~ a*x + b*y + e por minimos quadrados (normal equations 3x3, Cramer). */
+function plano(px, canal) {
+  let Sxx = 0, Sxy = 0, Syy = 0, Sx = 0, Sy = 0, N = 0, Sxc = 0, Syc = 0, Sc = 0;
+  for (const p of px) {
+    const x = p.x, y = p.y, c = p[canal];
+    Sxx += x * x; Sxy += x * y; Syy += y * y; Sx += x; Sy += y; N++;
+    Sxc += x * c; Syc += y * c; Sc += c;
+  }
+  const det = Sxx * (Syy * N - Sy * Sy) - Sxy * (Sxy * N - Sy * Sx) + Sx * (Sxy * Sy - Syy * Sx);
+  if (Math.abs(det) < 1e-9) return [0, 0, Sc / (N || 1)];
+  const d1 = Sxc * (Syy * N - Sy * Sy) - Sxy * (Syc * N - Sy * Sc) + Sx * (Syc * Sy - Syy * Sc);
+  const d2 = Sxx * (Syc * N - Sy * Sc) - Sxc * (Sxy * N - Sy * Sx) + Sx * (Sxy * Sc - Syc * Sx);
+  const d3 = Sxx * (Syy * Sc - Syc * Sy) - Sxy * (Sxy * Sc - Syc * Sx) + Sxc * (Sxy * Sy - Syy * Sx);
+  return [d1 / det, d2 / det, d3 / det];
+}
+
+/** Curva de cor amostrada ao longo de t -> lista minima de paradas, por Douglas-Peucker em COR. */
+function paradas(bins, tol) {
+  const val = bins.filter((b) => b.n > 0);
+  if (val.length < 2) return null;
+  const keep = new Set([0, val.length - 1]);
+  const rec = (a, b) => {
+    if (b - a < 2) return;
+    let pior = -1, iPior = -1;
+    for (let i = a + 1; i < b; i++) {
+      const f = (val[i].t - val[a].t) / ((val[b].t - val[a].t) || 1);
+      const d = Math.max(
+        Math.abs(val[a].r + (val[b].r - val[a].r) * f - val[i].r),
+        Math.abs(val[a].g + (val[b].g - val[a].g) * f - val[i].g),
+        Math.abs(val[a].b + (val[b].b - val[a].b) * f - val[i].b));
+      if (d > pior) { pior = d; iPior = i; }
+    }
+    if (pior > tol) { keep.add(iPior); rec(a, iPior); rec(iPior, b); }
+  };
+  rec(0, val.length - 1);
+  return [...keep].sort((a, b) => a - b).map((i) => ({
+    offset: val[i].t, r: clamp255(val[i].r), g: clamp255(val[i].g), b: clamp255(val[i].b),
+  }));
+}
+
+const avaliaParadas = (st, t) => {
+  if (t <= st[0].offset) return st[0];
+  for (let i = 1; i < st.length; i++) {
+    if (t <= st[i].offset) {
+      const a = st[i - 1], b = st[i];
+      const f = (t - a.offset) / ((b.offset - a.offset) || 1);
+      return { r: a.r + (b.r - a.r) * f, g: a.g + (b.g - a.g) * f, b: a.b + (b.b - a.b) * f };
+    }
+  }
+  return st[st.length - 1];
+};
+
+/** Estatistica do desvio maximo por canal entre o modelo e os pixels. */
+function residuo(px, tDe, st) {
+  const e = [];
+  for (const p of px) {
+    const c = avaliaParadas(st, tDe(p));
+    e.push(Math.max(Math.abs(c.r - p.r), Math.abs(c.g - p.g), Math.abs(c.b - p.b)));
+  }
+  e.sort((a, b) => a - b);
+  // p99 ao lado do p95: um modelo ERRADO (um radial de muitas paradas contornando dois blocos de
+  // cor) passa no p95 e delata-se na CAUDA. `max` sozinho e refem de um pixel de ruido.
+  return {
+    mediana: e[e.length >> 1], p95: e[Math.floor(e.length * 0.95)],
+    p99: e[Math.floor(e.length * 0.99)], max: e[e.length - 1],
+  };
+}
+
+function amostraCurva(px, tDe, nBins) {
+  // O t de cada bin e a MEDIA REAL dos seus membros, nao a posicao ancora. Com t ancorado, bins
+  // que recebem 2 ou 3 amostras (a divisao raramente e exata) tem seu centro de massa deslocado
+  // de forma irregular; num gradiente ingreme isso injeta jitter proporcional a inclinacao
+  // (~1/255 num caso medido) e o Douglas-Peucker, fiel, gasta paradas seguindo o ruido:
+  // um degrade vermelho->branco->azul saia com 8 paradas em vez de 3. Com o t medio o par
+  // (t, cor) fica consistente e o desvio se cancela.
+  const bins = Array.from({ length: nBins }, () => ({ t: 0, r: 0, g: 0, b: 0, n: 0 }));
+  for (const p of px) {
+    const t = tDe(p);
+    let k = Math.round(t * (nBins - 1)); if (k < 0) k = 0; if (k >= nBins) k = nBins - 1;
+    const b = bins[k]; b.t += t; b.r += p.r; b.g += p.g; b.b += p.b; b.n++;
+  }
+  for (const b of bins) if (b.n) { b.t /= b.n; b.r /= b.n; b.g /= b.n; b.b /= b.n; }
+  return bins;
+}
+
+function tentaLinear(px, tolParada, nBins) {
+  const pr = plano(px, 'r'), pg = plano(px, 'g'), pb = plano(px, 'b');
+  // autovetor principal da matriz de espalhamento dos gradientes (imune a sinal do canal)
+  let m00 = 0, m01 = 0, m11 = 0;
+  for (const [a, b] of [pr, pg, pb]) { m00 += a * a; m01 += a * b; m11 += b * b; }
+  if (m00 + m11 < 1e-12) return null;
+  const th = 0.5 * Math.atan2(2 * m01, m00 - m11);
+  const d = [Math.cos(th), Math.sin(th)];
+
+  let lo = Infinity, hi = -Infinity;
+  for (const p of px) { const t = p.x * d[0] + p.y * d[1]; if (t < lo) lo = t; if (t > hi) hi = t; }
+  if (hi - lo < 1e-9) return null;
+  const tDe = (p) => ((p.x * d[0] + p.y * d[1]) - lo) / (hi - lo);
+
+  const st = paradas(amostraCurva(px, tDe, nBins), tolParada);
+  if (!st) return null;
+
+  // Reescala EXATA: as paradas saem no t medido (a primeira um pouco acima de 0, a ultima um
+  // pouco abaixo de 1). Em vez de extrapolar cor, encurto o VETOR do gradiente para o trecho
+  // realmente medido e renormalizo os offsets — assim `pad` nunca precisa inventar faixa chapada.
+  const ta = st[0].offset, tb = st[st.length - 1].offset, vao = (tb - ta) || 1;
+  const projDe = (t) => lo + t * (hi - lo);
+  const escalado = st.map((s) => ({ ...s, offset: (s.offset - ta) / vao }));
+  const tEsc = (p) => (((p.x * d[0] + p.y * d[1]) - lo) / (hi - lo) - ta) / vao;
+  return {
+    tipo: 'linear',
+    x1: d[0] * projDe(ta), y1: d[1] * projDe(ta),
+    x2: d[0] * projDe(tb), y2: d[1] * projDe(tb),
+    paradas: escalado, res: residuo(px, tEsc, escalado),
+  };
+}
+
+function tentaRadial(px, tolParada, nBins) {
+  // centro inicial no centroide; refina por busca local (o raio e nao-linear, nao sai de LSQ direto)
+  let cx = 0, cy = 0;
+  for (const p of px) { cx += p.x; cy += p.y; }
+  cx /= px.length; cy /= px.length;
+  let melhor = null, passo = Math.max(...px.map((p) => Math.abs(p.x - cx))) / 2 || 1;
+  for (let it = 0; it < 11; it++) {
+    let local = null;
+    for (const [ox, oy] of [[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]]) {
+      const ax = cx + ox * passo, ay = cy + oy * passo;
+      let hi = 0; for (const p of px) { const r = Math.hypot(p.x - ax, p.y - ay); if (r > hi) hi = r; }
+      if (hi < 1e-9) continue;
+      const tDe = (p) => Math.hypot(p.x - ax, p.y - ay) / hi;
+      const st = paradas(amostraCurva(px, tDe, nBins), tolParada);
+      if (!st) continue;
+      const res = residuo(px, tDe, st);
+      if (!local || res.p95 < local.res.p95) local = { cx: ax, cy: ay, r: hi, paradas: st, res };
+    }
+    if (local && (!melhor || local.res.p95 < melhor.res.p95)) { melhor = local; cx = local.cx; cy = local.cy; }
+    passo /= 2;
+  }
+  if (!melhor) return null;
+  return { tipo: 'radial', cx: melhor.cx, cy: melhor.cy, r: melhor.r, paradas: melhor.paradas, res: melhor.res };
+}
+
+/** Decide o preenchimento de uma regiao. `px` = pixels interiores, opacos: {x,y,r,g,b}. */
+function ajustaPreenchimento(px, opc = {}) {
+  const { tolChapado = 2.5, tolParada = 1.5, ganhoMin = 1.6 } = opc;
+  // Bins proporcionais a raiz da amostra: com ~1000 pixels e 64 bins cada bin fica com ~15
+  // amostras, o ruido da media passa da tolerancia e o DP gasta paradas nele (um logo de 133x51
+  // saiu com 10 paradas). Menos bins em amostra magra = menos liberdade para superajustar.
+  const nBins = Math.max(8, Math.min(64, Math.round(Math.sqrt(px.length) / 2)));
+  if (!px.length) return { tipo: 'chapado', r: 0, g: 0, b: 0, res: { mediana: 0, p95: 0, max: 0 } };
+
+  let sr = 0, sg = 0, sb = 0;
+  for (const p of px) { sr += p.r; sg += p.g; sb += p.b; }
+  const med = { r: sr / px.length, g: sg / px.length, b: sb / px.length };
+  const chapado = {
+    tipo: 'chapado', r: clamp255(med.r), g: clamp255(med.g), b: clamp255(med.b),
+    res: residuo(px, () => 0, [{ offset: 0, r: med.r, g: med.g, b: med.b }]),
+  };
+  if (chapado.res.p95 <= tolChapado) return chapado;
+
+  const cands = [tentaLinear(px, tolParada, nBins), tentaRadial(px, tolParada, nBins)].filter(Boolean);
+  if (!cands.length) return chapado;
+  cands.sort((a, b) => a.res.p95 - b.res.p95);
+  const g = cands[0];
+  // so troca chapado por gradiente se o ganho for real — senao um gradiente decorativo
+  // com 2 paradas iguais entraria no lugar de uma cor solida
+  return (chapado.res.p95 / Math.max(g.res.p95, 0.35) >= ganhoMin) ? g : chapado;
+}
+
+/* ==================== vetorizar.js ==================== */
+/* vetorizar.js — orquestracao: RGBA -> SVG, mais o diagnostico honesto do que foi possivel.
+ *
+ * UMA via de codigo, com o numero de classes de cor (K) decidido pelo RESIDUO do modelo de
+ * pintura — nao por opcao do usuario nem por modo fixo.
+ *
+ * Por que assim: a primeira versao tinha um modo 'alfa' que tomava a silhueta do canal alfa como
+ * UMA regiao com UM preenchimento. Isso e otimo para marca de cor unica (o icone do Hive fechou
+ * com desvio de 1/255), e destroi qualquer arte com transparencia E estrutura interna: numa
+ * colmeia preta sobre circulo amarelo ele ajustou a cor MEDIA, com desvio de 185/255. Medido em
+ * 7 imagens reais, 5 caiam nessa armadilha.
+ *
+ * O criterio de parada e o proprio residuo: comeca em K=1 e cresce enquanto a pior classe nao
+ * for explicada pelo seu modelo. Um gradiente continua UMA classe (em K=1 o modelo linear ja o
+ * explica, residuo ~1), e duas cores chapadas exigem K=2 (em K=1 o residuo estoura). Assim o
+ * tracador nunca fatia um degrade em faixas nem funde duas cores numa media.
+ *
+ * K=1 reproduz exatamente o antigo modo 'alfa': com uma unica entrada na paleta o campo de
+ * cobertura degenera para o proprio canal alfa.
+ *
+ * 'foto' segue sendo recusa: SVG e o formato errado, e dizer isso vale mais que entregar 8 MB.
+ */
+
+
+
+/* ---------- analise ---------- */
+
+function analisa(rgba, w, h) {
+  const n = w * h;
+  let parciais = 0, vazios = 0, opacos = 0;
+  const vistas = new Set();
+  for (let i = 0; i < n; i++) {
+    const a = rgba[i * 4 + 3];
+    if (a === 0) vazios++; else if (a === 255) opacos++; else parciais++;
+    if (a > 8) {   // paleta grosseira (5 bits/canal) só para CONTAR variedade
+      vistas.add(((rgba[i * 4] >> 3) << 10) | ((rgba[i * 4 + 1] >> 3) << 5) | (rgba[i * 4 + 2] >> 3));
+    }
+  }
+  // "chapeza": fracao de pixels cuja vizinhanca-4 tem praticamente a mesma cor.
+  // Arte chapada e gradiente suave pontuam alto; foto pontua baixo (textura em toda parte).
+  let lisos = 0, contados = 0;
+  const dif = (i, j) => Math.max(Math.abs(rgba[i*4]-rgba[j*4]), Math.abs(rgba[i*4+1]-rgba[j*4+1]),
+                                 Math.abs(rgba[i*4+2]-rgba[j*4+2]), Math.abs(rgba[i*4+3]-rgba[j*4+3]));
+  const passo = Math.max(1, Math.floor(Math.sqrt(n / 40000)));
+  for (let y = 1; y < h - 1; y += passo) for (let x = 1; x < w - 1; x += passo) {
+    const i = y * w + x; contados++;
+    if (dif(i, i-1) <= 2 && dif(i, i+1) <= 2 && dif(i, i-w) <= 2 && dif(i, i+w) <= 2) lisos++;
+  }
+  const chapeza = contados ? lisos / contados : 0;
+  const cores = vistas.size;
+  const temAlfa = vazios / n > 0.02 || parciais / n > 0.005;
+
+  // Foto: a CHAPEZA e o discriminante, nao a contagem de cores. Medido: arte chapada 0.91,
+  // degrade liso 1.00, logo com antisserrilhado 0.94-0.99, ruido fotografico 0.00. A contagem de
+  // cor engana — quantizada em 5 bits/canal, uma foto de ruido suave se concentra em poucas
+  // centenas de baldes, e a regra antiga (`cores > 3000`) deixou passar uma foto sintetica que
+  // saiu com 31 mil nos e 1,4 MB. A contagem fica so como guarda contra imagem quase vazia.
+  const foto = chapeza < 0.30 && cores > 150;
+  return {
+    w, h, cores, chapeza, temAlfa,
+    fracVazio: vazios / n, fracParcial: parciais / n, fracOpaco: opacos / n,
+    modo: foto ? 'foto' : temAlfa ? 'alfa' : 'chapada',
+  };
+}
+
+/* ---------- paleta (median cut) ---------- */
+
+/** PRNG deterministico: a mesma imagem tem de dar o mesmo SVG entre execucoes. */
+function rng(semente) {
+  let a = semente >>> 0;
+  return () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296; };
+}
+
+function amostraCores(rgba, w, h, alvo = 60000) {
+  const px = [];
+  const passo = Math.max(1, Math.floor(Math.sqrt((w * h) / alvo)));
+  for (let y = 0; y < h; y += passo) for (let x = 0; x < w; x += passo) {
+    const i = (y * w + x) * 4;
+    if (rgba[i + 3] > 128) px.push([rgba[i], rgba[i+1], rgba[i+2]]);
+  }
+  return px;
+}
+
+/** Cores EXATAS com populacao relevante. Em arte chapada (com ou sem antisserrilhado) os
+ *  platos de cor sao poucos e populosos, e os pixels de mistura sao individualmente raros —
+ *  entao a moda da histograma devolve a paleta VERDADEIRA, sem agrupamento nenhum. Isso evita
+ *  de vez o otimo local do k-means, que num teste de 12 cores chapadas perdeu 4 delas. */
+function coresDominantes(rgba, w, h, maxCores, minFrac = 0.004, cobMin = 0.55) {
+  const conta = new Map();
+  let total = 0;
+  const passo = Math.max(1, Math.floor(Math.sqrt((w * h) / 120000)));
+  for (let y = 0; y < h; y += passo) for (let x = 0; x < w; x += passo) {
+    const i = (y * w + x) * 4;
+    if (rgba[i + 3] < 250) continue;
+    const k = (rgba[i] << 16) | (rgba[i+1] << 8) | rgba[i+2];
+    conta.set(k, (conta.get(k) || 0) + 1); total++;
+  }
+  if (!total) return null;
+  const ord = [...conta.entries()].sort((a, b) => b[1] - a[1]);
+  const dom = ord.filter(([, n]) => n / total >= minFrac).slice(0, maxCores);
+  if (!dom.length) return null;
+  const cobertura = dom.reduce((s, [, n]) => s + n, 0) / total;
+  if (cobertura < cobMin) return null;      // nao ha plato: gradiente ou foto, agrupar e melhor
+  return dom.map(([k]) => [(k >> 16) & 255, (k >> 8) & 255, k & 255]);
+}
+
+/** k-means com inicializacao k-means++ e reinicios. O median cut puro cortava pela MEDIANA DA
+ *  POPULACAO (que ignora agrupamento) e o Lloyd, sendo local, herdava o erro: num xadrez de tres
+ *  cores duas entradas saiam como mistura. O ++ escolhe cada centro com probabilidade
+ *  proporcional a distancia quadratica ao centro mais proximo, o que espalha a semente pelos
+ *  agrupamentos de fato; tres reinicios cobrem o azar restante. */
+function paletaKMeans(rgba, w, h, K, semente = 12345) {
+  const px = amostraCores(rgba, w, h);
+  if (!px.length) return [[0, 0, 0]];
+  if (K <= 1) {
+    const s = [0, 0, 0];
+    for (const c of px) { s[0] += c[0]; s[1] += c[1]; s[2] += c[2]; }
+    return [s.map((v) => Math.round(v / px.length))];
+  }
+  const d2 = (a, b) => (a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2;
+  let melhorP = null, melhorSSE = Infinity;
+
+  for (let tent = 0; tent < 3; tent++) {
+    const rnd = rng(semente + tent * 7919);
+    const cent = [px[Math.floor(rnd() * px.length)].slice()];
+    const dist = px.map((c) => d2(c, cent[0]));
+    while (cent.length < K) {
+      let soma = 0; for (const d of dist) soma += d;
+      if (soma <= 0) break;
+      let alvo = rnd() * soma, k = 0;
+      while (k < dist.length - 1 && (alvo -= dist[k]) > 0) k++;
+      cent.push(px[k].slice());
+      for (let i = 0; i < px.length; i++) { const d = d2(px[i], cent[cent.length-1]); if (d < dist[i]) dist[i] = d; }
+    }
+    let P = cent;
+    for (let it = 0; it < 24; it++) {
+      const soma = P.map(() => [0, 0, 0, 0]);
+      for (const c of px) {
+        let b = 0, dm = Infinity;
+        for (let k = 0; k < P.length; k++) { const d = d2(c, P[k]); if (d < dm) { dm = d; b = k; } }
+        const t = soma[b]; t[0] += c[0]; t[1] += c[1]; t[2] += c[2]; t[3]++;
+      }
+      let moveu = 0;
+      P = P.map((q, k) => {
+        const t = soma[k]; if (!t[3]) return q;
+        const n = [t[0]/t[3], t[1]/t[3], t[2]/t[3]];
+        moveu = Math.max(moveu, Math.abs(n[0]-q[0]), Math.abs(n[1]-q[1]), Math.abs(n[2]-q[2]));
+        return n;
+      });
+      if (moveu < 0.05) break;
+    }
+    let sse = 0;
+    for (const c of px) { let dm = Infinity; for (const q of P) { const d = d2(c, q); if (d < dm) dm = d; } sse += dm; }
+    if (sse < melhorSSE) { melhorSSE = sse; melhorP = P; }
+  }
+  return melhorP.map((c) => c.map((v) => Math.round(v)));
+}
+
+/* ---------- campos de cobertura ---------- */
+
+const campoAlfa = (rgba, n) => {
+  const f = new Float32Array(n);
+  for (let i = 0; i < n; i++) f[i] = rgba[i * 4 + 3] / 255;
+  return f;
+};
+
+/** Cobertura SUAVE da classe k. Num pixel de borda entre as cores A e B, a mistura ja diz
+ *  onde esta a aresta: a fracao de A e a projecao da cor observada no segmento A->B. Isso da
+ *  contorno subpixel tambem em arte opaca, e faz classes vizinhas casarem no MESMO 0.5 —
+ *  sem costura branca entre elas, que e o artefato classico do tracado por camada. */
+function campoClasse(rgba, n, paleta, k) {
+  const f = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3] / 255;
+    if (a === 0) continue;
+    let i1 = -1, d1 = Infinity, i2 = -1, d2 = Infinity;
+    for (let p = 0; p < paleta.length; p++) {
+      const c = paleta[p];
+      const d = (r-c[0])**2 + (g-c[1])**2 + (b-c[2])**2;
+      if (d < d1) { d2 = d1; i2 = i1; d1 = d; i1 = p; } else if (d < d2) { d2 = d; i2 = p; }
+    }
+    if (i1 !== k && i2 !== k) continue;
+    let frac = 1;
+    if (i2 >= 0) {
+      const A = paleta[i1], B = paleta[i2];
+      const vx = A[0]-B[0], vy = A[1]-B[1], vz = A[2]-B[2];
+      const den = vx*vx + vy*vy + vz*vz;
+      if (den > 1e-9) {
+        frac = ((r-B[0])*vx + (g-B[1])*vy + (b-B[2])*vz) / den;
+        frac = frac < 0 ? 0 : frac > 1 ? 1 : frac;
+      }
+    }
+    f[i] = (i1 === k ? frac : 1 - frac) * a;
+  }
+  return f;
+}
+
+/** Pixels do INTERIOR (erodidos), para estimar o preenchimento sem contaminacao da borda:
+ *  num pixel de borda a cor e mistura com o vizinho — usar isso puxaria o gradiente. */
+function interiores(campo, rgba, w, h, minCampo = 0.98, maxAmostras = 30000) {
+  // Subamostragem por passo regular. O preenchimento e um modelo GLOBAL da regiao (um plano por
+  // canal, um eixo, uma curva de paradas), entao 30 mil pontos estimam tao bem quanto 1,3 milhao
+  // — e a busca do centro radial, que reavalia a regiao ~100 vezes, sairia de centenas de milhoes
+  // de operacoes numa imagem de 1 megapixel. Passo regular (nao aleatorio) mantem o resultado
+  // reproduzivel entre execucoes.
+  const px = [];
+  const passo = Math.max(1, Math.round(Math.sqrt((w * h) / maxAmostras)));
+  for (let y = 1; y < h - 1; y += passo) for (let x = 1; x < w - 1; x += passo) {
+    const i = y * w + x;
+    if (campo[i] < minCampo) continue;
+    if (campo[i-1] < 0.9 || campo[i+1] < 0.9 || campo[i-w] < 0.9 || campo[i+w] < 0.9) continue;
+    if (rgba[i*4+3] < 250) continue;
+    px.push({ x: x + 0.5, y: y + 0.5, r: rgba[i*4], g: rgba[i*4+1], b: rgba[i*4+2] });
+  }
+  return px;
+}
+
+/* ---------- SVG ---------- */
+
+const hex = (r, g, b) => '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+const nf = (v, c = 3) => { const s = v.toFixed(c); return s.replace(/\.?0+$/, '') || '0'; };
+
+function defDeGradiente(f, id) {
+  const st = f.paradas.map((s) =>
+    `<stop offset="${nf(s.offset, 4)}" stop-color="${hex(s.r, s.g, s.b)}"/>`).join('');
+  if (f.tipo === 'linear') {
+    return `<linearGradient id="${id}" x1="${nf(f.x1)}" y1="${nf(f.y1)}" x2="${nf(f.x2)}" y2="${nf(f.y2)}" gradientUnits="userSpaceOnUse">${st}</linearGradient>`;
+  }
+  return `<radialGradient id="${id}" cx="${nf(f.cx)}" cy="${nf(f.cy)}" r="${nf(f.r)}" gradientUnits="userSpaceOnUse">${st}</radialGradient>`;
+}
+
+/* ---------- pipeline ---------- */
+
+/** Escolhe K pelo residuo: cresce enquanto a PIOR classe nao for explicada pelo seu modelo.
+ *
+ * O descarte de pixel de costura e ESPACIAL, nao por proximidade de cor. A primeira versao
+ * descartava pixel cuja cor caisse entre duas entradas da paleta; numa ilustracao com sombreado
+ * suave isso descarta a MAIORIA dos pixels, e o residuo saia medido num subconjunto nao
+ * representativo — um caso real reportou 3,2 e errava 23 de fato. O criterio espacial (o pixel
+ * tem vizinho de outra classe) descarta exatamente a franja de antisserrilhado e preserva todo
+ * o interior sombreado. `cobertura` diz que fracao sobreviveu: residuo medido em pouca amostra
+ * nao merece confianca, e isso vai no diagnostico.
+ */
+function escolheClasses(rgba, w, h, opc, limiarResiduo, maxCores) {
+  const passo = Math.max(1, Math.round(Math.sqrt((w * h) / 40000)));
+  const gw = Math.floor((w - 2) / passo), gh = Math.floor((h - 2) / passo);
+  if (gw < 1 || gh < 1) return { paleta: null, K: 0, ajustes: [], residuo: 0, tentativas: [] };
+
+  // grade reduzida de pixels opacos (o proprio anel de alfa parcial ja fica de fora)
+  const gx = new Int32Array(gw * gh).fill(-1);
+  const amostra = [];
+  for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+    const x = 1 + i * passo, y = 1 + j * passo, k = y * w + x;
+    if (rgba[k*4+3] < 250) continue;
+    if (rgba[(k-1)*4+3] < 240 || rgba[(k+1)*4+3] < 240 ||
+        rgba[(k-w)*4+3] < 240 || rgba[(k+w)*4+3] < 240) continue;
+    gx[j * gw + i] = amostra.length;
+    amostra.push({ x: x + 0.5, y: y + 0.5, r: rgba[k*4], g: rgba[k*4+1], b: rgba[k*4+2] });
+  }
+  if (!amostra.length) return { paleta: null, K: 0, ajustes: [], residuo: 0, tentativas: [] };
+
+  // Cores dominantes exatas, quando existem, entram como CANDIDATO PRIVILEGIADO: em arte chapada
+  // elas sao a paleta verdadeira, e testar esse K logo apos K=1 evita subir 1,2,3... ate chegar la.
+  const dominantes = coresDominantes(rgba, w, h, maxCores);
+  const ordem = [];
+  const poe = (k) => { if (k >= 1 && k <= maxCores && !ordem.includes(k)) ordem.push(k); };
+  poe(1);
+  if (dominantes) poe(dominantes.length);
+  for (let k = 2; k <= maxCores; k++) poe(k);
+
+  const tentativas = [];
+  let ultimo = null;
+  for (const K of ordem) {
+    const paleta = K === 1 ? [mediaDe(amostra)]
+                : (dominantes && dominantes.length <= K ? dominantes : paletaKMeans(rgba, w, h, K));
+    const rot = new Int32Array(amostra.length);
+    for (let a = 0; a < amostra.length; a++) {
+      const px = amostra[a];
+      let melhor = 0, dm = Infinity;
+      for (let k = 0; k < paleta.length; k++) {
+        const c = paleta[k];
+        const d = (px.r-c[0])**2 + (px.g-c[1])**2 + (px.b-c[2])**2;
+        if (d < dm) { dm = d; melhor = k; }
+      }
+      rot[a] = melhor;
+    }
+    // costura: vizinho de outra classe na grade reduzida
+    const grupos = paleta.map(() => []);
+    let usados = 0;
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+      const a = gx[j * gw + i]; if (a < 0) continue;
+      let fronteira = false;
+      for (const [di, dj] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const ii = i + di, jj = j + dj;
+        if (ii < 0 || jj < 0 || ii >= gw || jj >= gh) continue;
+        const b = gx[jj * gw + ii];
+        if (b < 0 || rot[b] !== rot[a]) { fronteira = true; break; }
+      }
+      if (fronteira) continue;
+      grupos[rot[a]].push(amostra[a]); usados++;
+    }
+    const ajustes = grupos.map((g) => g.length >= 8 ? ajustaPreenchimento(g, opc) : null);
+    const vivos = ajustes.filter(Boolean);
+    const pior = vivos.length ? Math.max(...vivos.map((a) => a.res.p95)) : Infinity;
+    const piorCauda = vivos.length ? Math.max(...vivos.map((a) => a.res.p99)) : Infinity;
+    const cobertura = usados / amostra.length;
+    tentativas.push({ K, nPaleta: paleta.length, pior: Number.isFinite(pior) ? +pior.toFixed(2) : null,
+                      cauda: Number.isFinite(piorCauda) ? +piorCauda.toFixed(2) : null,
+                      cobertura: +cobertura.toFixed(2) });
+    ultimo = { paleta, K, ajustes, residuo: pior, cauda: piorCauda, cobertura,
+               viaDom: !!(dominantes && dominantes.length <= K && K > 1) };
+    // dois portoes: o corpo da distribuicao (p95) E a cauda (p99). So o p95 aceitava modelo
+    // errado — um radial de 10 paradas fingindo explicar duas cores chapadas separadas.
+    if (pior <= limiarResiduo && piorCauda <= limiarResiduo * 2.5 && cobertura >= 0.25) break;
+  }
+  return { ...ultimo, tentativas };
+}
+
+/** So para o diagnostico: a paleta escolhida veio da moda exata ou do agrupamento? */
+const dominantesUsadas = (esc) => esc && esc.paleta && esc.paleta.length > 1 && esc.viaDom;
+
+const mediaDe = (px) => {
+  const s = [0, 0, 0];
+  for (const p of px) { s[0] += p.r; s[1] += p.g; s[2] += p.b; }
+  return s.map((v) => Math.round(v / px.length));
+};
+
+function vetorizar(rgba, w, h, opc = {}) {
+  const {
+    tol = 0.6, grausMin = 42, casas = 3, areaMin = 2,
+    limiarResiduo = 6, maxCores = 12, forcarFoto = false,
+  } = opc;
+  const info = analisa(rgba, w, h);
+  const diag = { ...info, avisos: [], camadas: [] };
+
+  if (info.modo === 'foto' && !forcarFoto) {
+    diag.avisos.push('Imagem parece FOTOGRAFICA (' + info.cores + ' cores distintas, chapeza ' +
+      info.chapeza.toFixed(2) + '). SVG e o formato errado para isto: o arquivo sairia maior que ' +
+      'o original e com menos detalhe. Mantenha o raster — ou force, se souber o que quer.');
+    return { svg: null, diag };
+  }
+
+  const esc = escolheClasses(rgba, w, h, opc, limiarResiduo, maxCores);
+  if (!esc.paleta) { diag.avisos.push('Nada opaco para vetorizar.'); return { svg: null, diag }; }
+  const n = w * h;
+  diag.K = esc.paleta.length;
+  diag.viaDominantes = !!(dominantesUsadas(esc));
+  diag.buscaK = esc.tentativas;
+  diag.residuoPior = esc.residuo;
+  diag.cobertura = esc.cobertura;
+  diag.cauda = esc.cauda;
+  if (esc.cobertura < 0.4) {
+    diag.avisos.push('Amostra de interior magra (' + (esc.cobertura*100).toFixed(0) + '% dos ' +
+      'pixels sobreviveram ao descarte de costura): a imagem tem estrutura fina em toda parte, ' +
+      'e o residuo estimado e otimista. Confie na medicao de fidelidade, nao neste numero.');
+  }
+  diag.paleta = esc.paleta.map((c) => hex(c[0], c[1], c[2]));
+  if (esc.residuo > limiarResiduo) {
+    diag.avisos.push('Nem com ' + esc.K + ' classes o modelo de pintura fechou (pior residuo ' +
+      esc.residuo.toFixed(1) + '/255). O desenho sai fiel na FORMA, aproximado na COR.');
+  }
+
+  const camadas = esc.paleta.map((_, k) => ({
+    nome: 'c' + k,
+    campo: campoClasse(rgba, n, esc.paleta, k),
+    ajuste: esc.ajustes[k],
+  })).filter((c) => c.ajuste);
+
+  for (const c of camadas) { let s = 0; for (let i = 0; i < n; i++) s += c.campo[i]; c.peso = s; }
+  camadas.sort((a, b) => b.peso - a.peso);
+
+  const opaca = info.fracVazio < 0.005 && info.fracParcial < 0.02;
+  const defs = [], corpo = [];
+  let nosTotal = 0;
+
+  camadas.forEach((cam, idx) => {
+    if (cam.peso < areaMin) return;
+    const f = cam.ajuste;
+    let pintura;
+    if (f.tipo === 'chapado') pintura = hex(f.r, f.g, f.b);
+    else { const id = 'g' + idx; defs.push(defDeGradiente(f, id)); pintura = 'url(#' + id + ')'; }
+    const linha = { pintura: f.tipo, paradas: f.paradas ? f.paradas.length : 0,
+                    res: f.res, cor: f.tipo === 'chapado' ? pintura : undefined };
+
+    // camada de fundo (imagem opaca): retangulo de sangria mata o fio de costura
+    // onde tres classes se encontram, e ainda economiza os nos do contorno externo
+    if (opaca && idx === 0) {
+      corpo.push('<rect width="' + w + '" height="' + h + '" fill="' + pintura + '"/>');
+      diag.camadas.push({ ...linha, nos: 0, obs: 'fundo (rect)' });
+      return;
+    }
+
+    const { campo: cf, w: W, h: H, desloca } = comMoldura(cam.campo, w, h, 0);
+    const loops = contornos(cf, W, H, 0.5, desloca).filter((l) => Math.abs(area(l)) >= areaMin);
+    if (!loops.length) return;
+    let nos = 0;
+    const d = loops.map((l) => {
+      const bz = loopParaBeziers(l, tol, grausMin);
+      nos += bz.length;
+      return beziersParaPath(bz, casas);
+    }).join('');
+    nosTotal += nos;
+    corpo.push('<path d="' + d + '" fill="' + pintura + '" fill-rule="nonzero"/>');
+    diag.camadas.push({ ...linha, loops: loops.length, nos });
+  });
+
+  diag.nos = nosTotal;
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w +
+    '" height="' + h + '">' + (defs.length ? '<defs>' + defs.join('') + '</defs>' : '') +
+    corpo.join('') + '</svg>';
+  return { svg, diag };
+}
+
+/* ==================== extrair.js ==================== */
+/* extrair.js — CAMADA 0: quando o vetor JA EXISTE, extrair vence tracar.
+ *
+ * Esta e a operacao que produziu o melhor resultado da historia deste projeto: o icone do Hive
+ * nao foi convertido de PNG nenhum — o path ja estava dentro de um SVG de logo completo, e o
+ * trabalho foi localiza-lo, embutir os transforms dos ancestrais e recortar o viewBox na caixa
+ * exata. Fidelidade absoluta, nao aproximada. Tracar um raster e o plano B.
+ *
+ * O que este modulo faz, dado um SVG e um elemento escolhido:
+ *  - compoe a matriz do PAI ate a raiz (para nao perder posicao/escala do grupo em que ele vive);
+ *  - copia so os <defs> alcancaveis por url(#...), transitivamente;
+ *  - mede a caixa REAL com getBBox() no DOM (autoridade, nao estimativa) e recorta o viewBox;
+ *  - denuncia dependencia de fonte: <text> nao e curva, e renderiza errado em quem nao tem a fonte.
+ */
+
+const DESENHAVEIS = 'path,rect,circle,ellipse,line,polyline,polygon,text,image,use,g';
+
+function carregaSvg(texto) {
+  const doc = new DOMParser().parseFromString(texto, 'image/svg+xml');
+  const erro = doc.querySelector('parsererror');
+  if (erro) throw new Error('SVG invalido: ' + erro.textContent.slice(0, 200));
+  const raiz = doc.documentElement;
+  if (raiz.tagName.toLowerCase() !== 'svg') throw new Error('A raiz nao e <svg>.');
+  return raiz;
+}
+
+/* Conteudo destes elementos NAO se desenha: e material de referencia. Um exportador do Office
+ * enche o arquivo de <clipPath><rect/></clipPath>, e sem este filtro a lista oferecia os
+ * retangulos de recorte como se fossem o desenho (medido: 4 dos 12 candidatos de um logo real). */
+const NAO_DESENHA = 'defs,clipPath,mask,pattern,marker,symbol';
+
+/** Elementos candidatos, com uma etiqueta legivel. Grupos entram porque a marca costuma ser
+ *  um <g>; paths soltos tambem, porque as vezes ela e um path unico (foi o caso do Hive). */
+function candidatos(raizViva) {
+  const out = [];
+  raizViva.querySelectorAll(DESENHAVEIS).forEach((el, i) => {
+    if (el.closest(NAO_DESENHA)) return;
+    // cadeia de <g> de embrulho: um grupo de filho unico nao acrescenta escolha nenhuma,
+    // so repete a mesma caixa varias vezes na lista
+    if (el.tagName.toLowerCase() === 'g' && el.children.length === 1) return;
+    let caixa = null;
+    try { caixa = el.getBBox(); } catch { /* elemento sem geometria renderizada */ }
+    if (!caixa || caixa.width <= 0 || caixa.height <= 0) return;
+    const tag = el.tagName.toLowerCase();
+    const filhos = el.querySelectorAll(DESENHAVEIS).length;
+    out.push({
+      el, i, tag, filhos, caixa,
+      rotulo: tag + (el.id ? '#' + el.id : '') + (filhos ? ' (' + filhos + ' dentro)' : ''),
+      dim: caixa.width.toFixed(1) + ' x ' + caixa.height.toFixed(1),
+      area: caixa.width * caixa.height,
+      texto: tag === 'text' || el.querySelector('text') != null,
+    });
+  });
+  return out.sort((a, b) => b.area - a.area);
+}
+
+const fmt = (v, c = 4) => { const s = (+v).toFixed(c); return s.replace(/\.?0+$/, '') || '0'; };
+
+function matrizAte(el, raiz) {
+  // matriz que leva o espaco do usuario de `el` ate o da raiz
+  const a = raiz.getScreenCTM(), b = el.getScreenCTM();
+  if (!a || !b) return null;
+  return a.inverse().multiply(b);
+}
+
+/** Ids alcancaveis a partir de um trecho de markup, seguindo url(#..)/href transitivamente. */
+function defsNecessarias(raiz, markupInicial) {
+  const vistos = new Set();
+  let fila = [...markupInicial.matchAll(/url\(#([^)"']+)\)|(?:xlink:)?href\s*=\s*["']#([^"']+)["']/g)]
+    .map((m) => m[1] || m[2]).filter(Boolean);
+  while (fila.length) {
+    const id = fila.pop();
+    if (!id || vistos.has(id)) continue;
+    vistos.add(id);
+    const alvo = raiz.querySelector('[id="' + CSS.escape(id) + '"]');
+    if (!alvo) continue;
+    fila.push(...[...alvo.outerHTML.matchAll(/url\(#([^)"']+)\)|(?:xlink:)?href\s*=\s*["']#([^"']+)["']/g)]
+      .map((m) => m[1] || m[2]).filter(Boolean));
+  }
+  return vistos;
+}
+
+/** Extrai `alvo` como SVG independente, com viewBox recortado na caixa real. */
+function extrai(raizViva, alvo, opc = {}) {
+  const { margem = 0, casas = 4, titulo = '' } = opc;
+  const avisos = [];
+
+  const pai = alvo.parentNode;
+  const M = (pai && pai.getScreenCTM) ? matrizAte(pai, raizViva) : null;
+  const tm = M ? `matrix(${fmt(M.a,6)} ${fmt(M.b,6)} ${fmt(M.c,6)} ${fmt(M.d,6)} ${fmt(M.e,6)} ${fmt(M.f,6)})` : null;
+
+  const ids = defsNecessarias(raizViva, alvo.outerHTML);
+  const defs = [...ids].map((id) => {
+    const n = raizViva.querySelector('[id="' + CSS.escape(id) + '"]');
+    return n ? n.outerHTML : '';
+  }).filter(Boolean).join('');
+
+  // mede no DOM: monta o SVG de saida de verdade, le a caixa, so depois fixa o viewBox
+  const tmp = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  tmp.setAttribute('style', 'position:absolute;left:-99999px;width:10px;height:10px');
+  tmp.innerHTML = (defs ? '<defs>' + defs + '</defs>' : '') +
+                  '<g id="__medir">' + (tm ? '<g transform="' + tm + '">' : '') +
+                  alvo.outerHTML + (tm ? '</g>' : '') + '</g>';
+  document.body.appendChild(tmp);
+  const g = tmp.querySelector('#__medir');
+  let cx;
+  try { cx = g.getBBox(); } finally { /* remove abaixo */ }
+  const caixa = { x: cx.x - margem, y: cx.y - margem, w: cx.width + margem * 2, h: cx.height + margem * 2 };
+  document.body.removeChild(tmp);
+
+  if (caixa.w <= 0 || caixa.h <= 0) throw new Error('O elemento escolhido nao tem area.');
+
+  if (alvo.querySelector('text') || alvo.tagName.toLowerCase() === 'text') {
+    const fontes = new Set();
+    (alvo.tagName.toLowerCase() === 'text' ? [alvo] : [...alvo.querySelectorAll('text')])
+      .forEach((t) => { const f = t.getAttribute('font-family'); if (f) fontes.add(f.split(',')[0].trim()); });
+    avisos.push('Contem <text>, que NAO e curva: em qualquer maquina sem a fonte ' +
+      (fontes.size ? '(' + [...fontes].join(', ') + ') ' : '') + 'o desenho renderiza com outro tipo. ' +
+      'Para um asset de marca, converta o texto em contorno na origem.');
+  }
+  if (/<image\b/i.test(alvo.outerHTML)) {
+    avisos.push('Contem <image>: ha raster embutido ou referenciado dentro deste SVG. ' +
+      'A parte raster nao escala como vetor.');
+  }
+  const externos = [...alvo.outerHTML.matchAll(/url\((?!#)([^)]*)\)/g)].map((m) => m[1]);
+  if (externos.length) avisos.push('Referencia recurso EXTERNO: ' + externos.slice(0, 3).join(', '));
+
+  const corpo = (tm ? '<g transform="' + tm + '">' : '') + alvo.outerHTML + (tm ? '</g>' : '');
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' +
+    [fmt(caixa.x, casas), fmt(caixa.y, casas), fmt(caixa.w, casas), fmt(caixa.h, casas)].join(' ') +
+    '" width="' + fmt(caixa.w, casas) + '" height="' + fmt(caixa.h, casas) + '"' +
+    (titulo ? ' role="img" aria-label="' + titulo.replace(/"/g, '&quot;') + '"' : '') + '>' +
+    (titulo ? '<title>' + titulo.replace(/</g, '&lt;') + '</title>' : '') +
+    (defs ? '<defs>' + defs + '</defs>' : '') + corpo + '</svg>';
+
+  return { svg, caixa, avisos, nDefs: ids.size };
+}
+
+const $ = (s) => document.querySelector(s);
+const el = {
+  alvo: $('#alvo'), arquivo: $('#arquivo'), estado: $('#estado'),
+  palcoA: $('#palcoA'), palcoB: $('#palcoB'), rotEntrada: $('#rotEntrada'), rotSaida: $('#rotSaida'),
+  tabela: $('#tabela'), avisos: $('#avisos'), codigo: $('#codigo'),
+  painelRecusa: $('#painelRecusa'), txtRecusa: $('#txtRecusa'),
+  painelExtrair: $('#painelExtrair'), selElemento: $('#selElemento'), infoCaixa: $('#infoCaixa'),
+  chkMargem: $('#chkMargem'), avisoCopia: $('#avisoCopia'),
+  painelAjustes: $('#painelAjustes'),
+};
+/** Os controles de tracado nao tem efeito nenhum sobre extracao — deixa-los visiveis ali
+ *  convida a mexer num botao morto. */
+const modoNaTela = (m) => el.painelAjustes.classList.toggle('oculto', m === 'extrair');
+const est = {
+  nome: '', bytesEntrada: 0, rgba: null, w: 0, h: 0,   // raster de entrada (ou render do svg)
+  svg: null, diag: null, vista: 'svg', forcar: false,
+  modo: 'tracar', raizSvg: null, cands: [], rasterRef: null,
+};
+
+/* ---------- utilidades de imagem ---------- */
+
+function pixelsDe(img, w, h) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.clearRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h);
+  return g.getImageData(0, 0, w, h).data;
+}
+const carregaImg = (url) => new Promise((ok, err) => {
+  const i = new Image(); i.onload = () => ok(i);
+  i.onerror = () => err(new Error('nao foi possivel decodificar a imagem'));
+  i.src = url;
+});
+const urlDeSvg = (s) => URL.createObjectURL(new Blob([s], { type: 'image/svg+xml' }));
+
+/* Dois caminhos para rasterizar, de proposito: `blob:` primeiro, `data:` como reserva. Numa
+ * pagina hospedada com CSP restritiva o `blob:` pode ser barrado em img-src, e sem rasterizacao
+ * nao ha medicao de fidelidade — que e o unico motivo deste app existir em vez de um tracador
+ * qualquer. A reserva custa uma linha e salva o recurso principal. */
+async function rasterizaSvg(svg, w, h) {
+  try {
+    const u = urlDeSvg(svg);
+    try { return pixelsDe(await carregaImg(u), w, h); } finally { URL.revokeObjectURL(u); }
+  } catch {
+    const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(svg)));
+    return pixelsDe(await carregaImg('data:image/svg+xml;base64,' + b64), w, h);
+  }
+}
+
+/** Duas fontes de erro medidas SEPARADAMENTE (ver a dica no painel). */
+function compara(A, B, w, h) {
+  let tinta = 0, dif = 0; const liso = [], borda = [];
+  const naAresta = (i, x, y) => {
+    if (x < 1 || y < 1 || x >= w - 1 || y >= h - 1) return true;
+    for (const j of [i - 1, i + 1, i - w, i + w])
+      for (let c = 0; c < 4; c++) if (Math.abs(A[i*4+c] - A[j*4+c]) > 24) return true;
+    return false;
+  };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    const aA = A[i*4+3] > 127, aB = B[i*4+3] > 127;
+    if (aA) tinta++;
+    if (aA !== aB) dif++;
+    if (A[i*4+3] === 255 && B[i*4+3] === 255) {
+      const e = Math.max(Math.abs(A[i*4]-B[i*4]), Math.abs(A[i*4+1]-B[i*4+1]), Math.abs(A[i*4+2]-B[i*4+2]));
+      (naAresta(i, x, y) ? borda : liso).push(e);
+    }
+  }
+  const est_ = (a) => { a.sort((p, q) => p - q); return a.length
+    ? { med: a[a.length>>1], p95: a[Math.floor(a.length*0.95)], max: a[a.length-1], n: a.length } : null; };
+  return { pct: tinta ? dif / tinta * 100 : 0, difPx: dif, liso: est_(liso), borda: est_(borda) };
+}
+
+function telaDiferenca(A, B, w, h) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  const im = g.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) {
+    const dA = Math.abs(A[i*4+3] - B[i*4+3]);
+    const dC = Math.max(Math.abs(A[i*4]-B[i*4]), Math.abs(A[i*4+1]-B[i*4+1]), Math.abs(A[i*4+2]-B[i*4+2]));
+    const forma = dA > 96, v = Math.min(255, dC * 6);
+    im.data[i*4]   = forma ? 255 : v;                 // magenta = silhueta divergente
+    im.data[i*4+1] = forma ? 0 : Math.max(0, 40 - v);
+    im.data[i*4+2] = forma ? 255 : v;
+    im.data[i*4+3] = (forma || v > 8) ? 235 : 16;
+  }
+  g.putImageData(im, 0, 0);
+  return c;
+}
+
+/* ---------- relatorio ---------- */
+
+const kb = (n) => (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB';
+const classe = (v, bom, meio) => v <= bom ? 'bom' : v <= meio ? 'meio' : 'ruim';
+/** Veredicto em palavra, nao so em cor e numero: quem le o relatorio nao tem obrigacao de
+ *  saber de cabeca que 0,4% de silhueta e otimo e 4% nao e. */
+const pino = (v, bom, meio) => {
+  const c = classe(v, bom, meio);
+  return `<span class="pino ${c}">${{ bom: 'fiel', meio: 'aceit&aacute;vel', ruim: 'aproximado' }[c]}</span>`;
+};
+
+function pintaRelatorio(cmp, extra) {
+  const l = [];
+  const linha = (t, v, cls) => l.push(`<tr><th>${t}</th><td class="num ${cls || ''}">${v}</td></tr>`);
+  if (cmp) {
+    linha('Silhueta', pino(cmp.pct, 0.5, 2) + `${cmp.pct.toFixed(3)}% da tinta divergente ` +
+      `<span style="color:var(--fraco)">(${cmp.difPx.toLocaleString('pt-BR')} px)</span>`, classe(cmp.pct, 0.5, 2));
+    const q = (o) => o ? `mediana ${o.med} &nbsp; p95 ${o.p95} &nbsp; m&aacute;x ${o.max}` : '&mdash;';
+    linha('Cor no interior', (cmp.liso ? pino(cmp.liso.p95, 2, 8) : '') + q(cmp.liso),
+      cmp.liso ? classe(cmp.liso.p95, 2, 8) : '');
+    linha('Cor na aresta', (cmp.borda ? pino(cmp.borda.p95, 8, 30) : '') + q(cmp.borda),
+      cmp.borda ? classe(cmp.borda.p95, 8, 30) : '');
+  }
+  for (const [t, v, cls] of extra) linha(t, v, cls);
+  el.tabela.innerHTML = l.join('');
+}
+
+/* ---------- fluxo: tracar raster ---------- */
+
+async function tracar() {
+  if (!est.rgba) return;
+  el.estado.textContent = 'calculando...';
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const opc = {
+    tol: +$('#tol').value, grausMin: +$('#canto').value,
+    maxCores: +$('#cores').value, limiarResiduo: +$('#res').value,
+    forcarFoto: est.forcar,
+  };
+  const t0 = performance.now();
+  const { svg, diag } = vetorizar(est.rgba, est.w, est.h, opc);
+  const ms = performance.now() - t0;
+  est.svg = svg; est.diag = diag;
+
+  el.painelRecusa.classList.toggle('oculto', !!svg);
+  if (!svg) {
+    el.txtRecusa.innerHTML = diag.avisos.join(' ');
+    el.palcoB.innerHTML = ''; el.rotSaida.textContent = '';
+    pintaRelatorio(null, [['An&aacute;lise',
+      `${diag.cores} cores distintas &middot; chapeza ${diag.chapeza.toFixed(2)} &middot; modo <b>${diag.modo}</b>`, 'ruim']]);
+    acoes(false); el.estado.textContent = ''; return;
+  }
+
+  let rast = null, cmp = null;
+  try {
+    rast = await rasterizaSvg(svg, est.w, est.h);
+    cmp = compara(est.rgba, rast, est.w, est.h);
+  } catch (e) { /* sem medicao; o SVG segue valido e a tabela diz que faltou a afericao */ }
+  est.rast = rast;
+  mostraSaida();
+
+  // Em K=1 a "paleta" e so o centroide da regiao, e o preenchimento de fato pode ser um
+  // gradiente — mostrar a amostra ali daria a entender que a saida e chapada.
+  const paleta = diag.K > 1 ? (diag.paleta || []).map((c) =>
+    `<span class="chip"><span class="amostra" style="background:${c}"></span>${c}</span>`).join('') : '';
+  const pinturas = (diag.camadas || []).map((c) =>
+    c.pintura + (c.paradas ? `/${c.paradas} paradas` : '') + (c.obs ? ` (${c.obs})` : '')).join(', ');
+  pintaRelatorio(cmp, [
+    ['Arquivo', `${kb(svg.length)} de SVG &nbsp;<span style="color:var(--fraco)">contra ${kb(est.bytesEntrada)} da entrada</span>`,
+      svg.length <= est.bytesEntrada ? 'bom' : 'meio'],
+    ['Geometria', `${diag.nos} n&oacute;s de curva &middot; ${diag.camadas.length} camada(s) &middot; ${ms.toFixed(0)} ms`],
+    ['Modelo de pintura', pinturas],
+    ['Classes de cor', `K = <b>${diag.K}</b> &nbsp;<span style="color:var(--fraco)">busca: ${
+      (diag.buscaK||[]).map((t) => `K=${t.K}&rarr;${t.pior}`).join(', ')}</span>` + (paleta ? `<div class="chips">${paleta}</div>` : '')],
+  ]);
+  el.avisos.innerHTML = (diag.avisos || []).map((a) => `<div class="aviso">${a}</div>`).join('');
+  if (!cmp) el.avisos.insertAdjacentHTML('afterbegin', '<div class="aviso recusa">O navegador ' +
+    'barrou a rasteriza&ccedil;&atilde;o do SVG, ent&atilde;o <b>a fidelidade n&atilde;o p&ocirc;de ser medida</b> aqui. ' +
+    'O SVG abaixo est&aacute; produzido e v&aacute;lido &mdash; mas confira-o antes de confiar nele.</div>');
+  acoes(true);
+  el.estado.textContent = '';
+}
+
+/* ---------- fluxo: extrair de svg ---------- */
+
+async function extrair() {
+  const i = +el.selElemento.value;
+  const c = est.cands[i]; if (!c) return;
+  el.avisos.innerHTML = '';   // sem isso o aviso "sem referencia" sobrevivia ao gabarito chegar
+  const lado = Math.max(c.caixa.width, c.caixa.height);
+  let r;
+  try { r = extrai(est.raizSvg, c.el, { margem: el.chkMargem.checked ? lado * 0.04 : 0, titulo: '' }); }
+  catch (e) { el.avisos.innerHTML = `<div class="aviso recusa">${e.message}</div>`; return; }
+  est.svg = r.svg;
+  el.infoCaixa.innerHTML = `caixa: <b class="mono">${r.caixa.w.toFixed(2)} &times; ${r.caixa.h.toFixed(2)}</b>` +
+    ` &middot; ${r.nDefs} defs alcan&ccedil;adas`;
+
+  const larg = Math.max(1, Math.min(1400, Math.round(r.caixa.w)));
+  const alt = Math.max(1, Math.round(larg * r.caixa.h / r.caixa.w));
+  mostraSaida();
+
+  const extra = [
+    ['Arquivo', `${kb(r.svg.length)} de SVG &nbsp;<span style="color:var(--fraco)">contra ${kb(est.bytesEntrada)} do original</span>`, 'bom'],
+    ['Caixa recortada', `${r.caixa.w.toFixed(4)} &times; ${r.caixa.h.toFixed(4)} &nbsp;<span style="color:var(--fraco)">(aspecto ${(r.caixa.w/r.caixa.h).toFixed(5)})</span>`],
+    ['Fidelidade', 'absoluta &mdash; a geometria n&atilde;o foi aproximada, foi <b>recortada</b>', 'bom'],
+  ];
+  // se houver um raster de referencia carregado, mede a extracao contra ele (o fluxo do icone do Hive)
+  if (est.rasterRef) {
+    const { rgba, w, h } = est.rasterRef;
+    let rast = null, cmp = null;
+    try { rast = await rasterizaSvg(r.svg, w, h); cmp = compara(rgba, rast, w, h); } catch {}
+    est.rgba = rgba; est.w = w; est.h = h; est.rast = rast;
+    pintaRelatorio(cmp, extra);
+    el.avisos.innerHTML = '<div class="aviso">A diverg&ecirc;ncia acima &eacute; do <b>raster em rela&ccedil;&atilde;o ao ' +
+      'vetor</b>, n&atilde;o um erro da extra&ccedil;&atilde;o: o PNG &eacute; uma rasteriza&ccedil;&atilde;o desse mesmo desenho, ' +
+      'com o antisserrilhado e o recorte dele. Serve para confirmar que o elemento escolhido &eacute; o certo.</div>';
+  } else {
+    pintaRelatorio(null, extra);
+    el.avisos.innerHTML = '<div class="aviso">Sem refer&ecirc;ncia para medir. Arraste tamb&eacute;m o ' +
+      '<b>PNG correspondente</b> e o app confere a extra&ccedil;&atilde;o contra ele, pixel a pixel.</div>';
+  }
+  if (r.avisos.length) {
+    el.avisos.innerHTML += r.avisos.map((a) => `<div class="aviso">${a}</div>`).join('');
+  }
+  acoes(true);
+}
+
+/* ---------- telas e acoes ---------- */
+
+function mostraSaida() {
+  el.palcoB.innerHTML = '';
+  if (!est.svg) return;
+  if (est.vista === 'dif' && est.rast && est.rgba) {
+    el.palcoB.appendChild(telaDiferenca(est.rgba, est.rast, est.w, est.h));
+    el.rotSaida.textContent = 'magenta = silhueta; brilho = desvio de cor';
+  } else {
+    const d = document.createElement('div');
+    d.innerHTML = est.svg;
+    const s = d.firstElementChild;
+    s.removeAttribute('width'); s.removeAttribute('height');
+    s.style.imageRendering = 'auto';   // a escala vem do CSS do palco, igual para os dois lados
+    el.palcoB.appendChild(s);
+    el.rotSaida.textContent = 'SVG (vetorial: amplie sem perda)';
+  }
+}
+function acoes(ok) {
+  for (const b of ['#btBaixar', '#btCopiar', '#btCodigo']) $(b).disabled = !ok;
+  if (ok) el.codigo.textContent = est.svg;
+}
+
+/* ---------- entrada de arquivo ---------- */
+
+async function recebe(file) {
+  const ehSvg = /svg/i.test(file.type) || /\.svg$/i.test(file.name);
+  el.estado.textContent = 'lendo...';
+  try {
+    if (ehSvg) {
+      const texto = await file.text();
+      est.nome = file.name; est.bytesEntrada = file.size; est.modo = 'extrair';
+      const raiz = carregaSvg(texto);
+      // precisa estar VIVO no documento para getBBox/getScreenCTM responderem
+      const hosp = document.createElement('div');
+      hosp.style.cssText = 'position:absolute;left:-99999px;top:0';
+      const vivo = document.importNode(raiz, true);
+      hosp.appendChild(vivo); document.body.appendChild(hosp);
+      est.raizSvg = vivo;
+      est.cands = candidatos(vivo);
+      if (!est.cands.length) throw new Error('Nenhum elemento com area neste SVG.');
+      el.selElemento.innerHTML = est.cands.map((c, i) =>
+        `<option value="${i}">${c.rotulo} &mdash; ${c.dim}${c.texto ? ' [contem texto]' : ''}</option>`).join('');
+      el.painelExtrair.classList.remove('oculto');
+      el.painelRecusa.classList.add('oculto');
+      modoNaTela('extrair');
+      el.rotEntrada.textContent = `${file.name} (vetorial)`;
+      el.palcoA.innerHTML = '';
+      const pv = document.createElement('div'); pv.innerHTML = texto;
+      const sv = pv.firstElementChild;
+      if (sv) { sv.removeAttribute('width'); sv.removeAttribute('height');
+        el.palcoA.appendChild(sv); }
+      await extrair();
+    } else {
+      const url = URL.createObjectURL(file);
+      const img = await carregaImg(url);
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const rgba = pixelsDe(img, w, h);
+      if (est.modo === 'extrair' && est.raizSvg) {
+        // raster chegou DEPOIS de um svg: serve de gabarito da extracao
+        est.rasterRef = { rgba, w, h };
+        el.rotEntrada.textContent = `${est.nome} + ${file.name} (referencia)`;
+        el.palcoA.innerHTML = ''; el.palcoA.appendChild(img);
+        await extrair();
+      } else {
+        est.nome = file.name; est.bytesEntrada = file.size; est.modo = 'tracar';
+        est.rgba = rgba; est.w = w; est.h = h; est.forcar = false; est.rasterRef = null;
+        est.raizSvg = null; el.painelExtrair.classList.add('oculto');
+        modoNaTela('tracar');
+        el.rotEntrada.textContent = `${file.name} \u00b7 ${w}\u00d7${h}`;
+        el.palcoA.innerHTML = ''; el.palcoA.appendChild(img);
+        URL.revokeObjectURL(url);
+        if (w * h > 8e6) el.avisos.innerHTML = '<div class="aviso">Imagem grande (' +
+          (w*h/1e6).toFixed(1) + ' MP): cada c&aacute;lculo leva alguns segundos.</div>';
+        await tracar();
+      }
+    }
+    el.alvo.classList.add('oculto');
+  } catch (e) {
+    el.avisos.innerHTML = `<div class="aviso recusa">${e.message}</div>`;
+  }
+  el.estado.textContent = '';
+}
+
+/* ---------- amostra embutida ---------- */
+
+/* Um app que abre vazio nao mostra nada: a primeira tela e o que um link compartilhado
+ * exibe. Esta amostra e DESENHADA na propria pagina (nao ha imagem embutida no arquivo) e foi
+ * escolhida para exercitar de uma vez os quatro pontos interessantes do tracador:
+ *   - curva lisa e canto DURO no mesmo contorno (a ponta da gota), que testa a deteccao de quina;
+ *   - um buraco, que testa orientacao de loop e fill-rule;
+ *   - gradiente de 3 paradas com joelho FORTE (o meio desvia ~64/255 da reta ponta a ponta),
+ *     que so fecha se o ajuste recuperar a parada do meio;
+ *   - bordas antisserrilhadas, que e de onde sai a precisao subpixel. */
+function desenhaAmostra() {
+  const L = 480;
+  const c = document.createElement('canvas'); c.width = L; c.height = L;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const grad = g.createLinearGradient(70, 40, 410, 440);
+  grad.addColorStop(0, '#0b5563'); grad.addColorStop(0.5, '#2a8f8a'); grad.addColorStop(1, '#c9d94a');
+  g.fillStyle = grad;
+  g.beginPath();
+  g.moveTo(240, 44);                                     // a ponta: canto duro
+  g.bezierCurveTo(298, 152, 420, 236, 420, 308);
+  g.arc(240, 308, 180, 0, Math.PI, false);               // a barriga: curva lisa
+  g.bezierCurveTo(60, 236, 182, 152, 240, 44);
+  g.closePath();
+  g.moveTo(310, 308); g.arc(240, 308, 70, 0, Math.PI * 2); // o buraco
+  g.fill('evenodd');
+  return { canvas: c, L };
+}
+
+async function carregaAmostra() {
+  const { canvas, L } = desenhaAmostra();
+  const bytes = await new Promise((ok) => {
+    try { canvas.toBlob((b) => ok(b ? b.size : 0), 'image/png'); } catch { ok(0); }
+  });
+  est.nome = 'exemplo.png'; est.bytesEntrada = bytes; est.modo = 'tracar';
+  est.rgba = canvas.getContext('2d').getImageData(0, 0, L, L).data;
+  est.w = L; est.h = L; est.forcar = false; est.rasterRef = null; est.raizSvg = null;
+  el.rotEntrada.textContent = `exemplo embutido \u00b7 ${L}\u00d7${L}`;
+  el.palcoA.innerHTML = ''; el.palcoA.appendChild(canvas);
+  modoNaTela('tracar');
+  await tracar();
+  el.avisos.insertAdjacentHTML('afterbegin', '<div class="aviso">Este &eacute; um <b>exemplo ' +
+    'embutido</b>, desenhado nesta p&aacute;gina para o app abrir mostrando o que faz. ' +
+    'Arraste a sua imagem para substitu&iacute;-lo.</div>');
+}
+
+/* ---------- ligacoes ---------- */
+
+let timer;
+const reagenda = () => { clearTimeout(timer); timer = setTimeout(() => {
+  if (est.modo === 'tracar') tracar(); }, 450); };
+for (const id of ['tol', 'canto', 'cores', 'res']) {
+  const i = $('#' + id);
+  const rot = { tol: '#vTol', canto: '#vCanto', cores: '#vCores', res: '#vRes' }[id];
+  const pinta = () => { $(rot).textContent = i.value; };
+  i.addEventListener('input', () => { pinta(); reagenda(); });
+  pinta();
+}
+el.chkMargem.addEventListener('change', () => { if (est.modo === 'extrair') extrair(); });
+el.selElemento.addEventListener('change', () => extrair());
+$('#btForcar').addEventListener('click', () => { est.forcar = true; tracar(); });
+document.querySelectorAll('.abas button').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('.abas button').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+  est.vista = b.dataset.vista; mostraSaida();
+}));
+$('#btAbrir').addEventListener('click', () => el.arquivo.click());
+el.alvo.addEventListener('click', () => el.arquivo.click());
+el.arquivo.addEventListener('change', (e) => { if (e.target.files[0]) recebe(e.target.files[0]); });
+for (const ev of ['dragenter', 'dragover']) document.addEventListener(ev, (e) => {
+  e.preventDefault(); el.alvo.classList.add('sobre'); });
+for (const ev of ['dragleave', 'drop']) document.addEventListener(ev, (e) => {
+  e.preventDefault(); el.alvo.classList.remove('sobre'); });
+document.addEventListener('drop', (e) => {
+  const fs = [...(e.dataTransfer?.files || [])];
+  if (!fs.length) return;
+  // svg primeiro: se vierem os dois juntos, o vetor manda e o raster vira gabarito
+  const svg = fs.find((f) => /svg/i.test(f.type) || /\.svg$/i.test(f.name));
+  (async () => { if (svg) { await recebe(svg); const r = fs.find((f) => f !== svg); if (r) await recebe(r); }
+                 else await recebe(fs[0]); })();
+});
+/* Entregar o arquivo tem DOIS caminhos, porque esta pagina vive em dois lugares:
+ *  - como arquivo local (duplo clique): `<a download>` funciona;
+ *  - hospedada num visualizador: o navegador inutiliza `<a download>` SEM avisar — inclusive
+ *    href blob:/data: — e entregar arquivo passa pela capacidade `downloads`, que mostra ao
+ *    leitor uma confirmacao com nome e tamanho antes de salvar.
+ * Num conversor, entregar o resultado E o recurso principal; um botao morto seria o pior
+ * defeito possivel. Por isso o app descobre em qual dos dois esta, em vez de supor.
+ * `claude.use()` nunca resolve na primeira passada sincrona, e `window.claude` pode nao existir:
+ * a pagina renderiza sem ele e o caminho acende quando (e se) resolver. */
+const emIframe = (() => { try { return window.self !== window.top; } catch { return true; } })();
+let salvarNaPlataforma = null;
+(async () => {
+  try {
+    salvarNaPlataforma = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+  } catch { salvarNaPlataforma = null; }
+  if (!salvarNaPlataforma && emIframe) {
+    el.avisoCopia.textContent = 'esta copia hospedada nao pode entregar arquivo; use Copiar codigo.';
+  }
+})();
+
+const nomeDeSaida = () => (est.nome || 'vetor').replace(/\.[^.]+$/, '') + '.svg';
+const recado = (t) => { el.avisoCopia.textContent = t; setTimeout(() => {
+  if (el.avisoCopia.textContent === t) el.avisoCopia.textContent = ''; }, 4000); };
+
+$('#btBaixar').addEventListener('click', async () => {
+  if (!est.svg) return;
+  if (salvarNaPlataforma) {
+    try {
+      const r = await salvarNaPlataforma.save({ filename: nomeDeSaida(), data: est.svg });
+      recado(r && r.status === 'delivered' ? 'entregue.' : 'salvo.');
+    } catch (e) {
+      const cod = e && e.code;
+      // `declined` nao se repete por conta propria; `rate_limited` pede espera
+      recado({
+        declined: 'download recusado.',
+        rate_limited: 'ja ha um pedido aberto; tente de novo em instantes.',
+        too_large: 'arquivo grande demais para o destino escolhido.',
+      }[cod] || ('nao deu para salvar aqui' + (cod ? ' (' + cod + ')' : '') + '; use Copiar codigo.'));
+    }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = urlDeSvg(est.svg); a.download = nomeDeSaida();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+});
+$('#btCopiar').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(est.svg); recado('copiado.'); }
+  catch { recado('a area de transferencia foi negada; use Ver codigo e copie a mao.'); }
+});
+$('#btCodigo').addEventListener('click', () => el.codigo.classList.toggle('oculto'));
+// `data-theme` com os valores dark/light: e o MESMO atributo que o hospedeiro marca na raiz
+// quando o leitor escolhe um tema. Com um atributo proprio, a escolha do leitor era ignorada.
+$('#btTema').addEventListener('click', () => {
+  const r = document.documentElement;
+  const atual = r.getAttribute('data-theme');
+  const escuro = atual ? atual === 'dark' : matchMedia('(prefers-color-scheme:dark)').matches;
+  r.setAttribute('data-theme', escuro ? 'light' : 'dark');
+});
+
+carregaAmostra();
+</script>
