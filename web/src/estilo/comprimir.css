@@ -1,0 +1,698 @@
+/*
+ * A ferramenta de compressão.
+ *
+ * Este arquivo é só dela. Ele usa os tokens de `base.css` e a escala de movimento do projeto, mas
+ * não toca em `componentes.css` — assim a ferramenta entra e sai sem mexer no conversor.
+ *
+ * Sobre o movimento aqui: a regra do projeto é durar. A exceção é o divisor da comparação, que
+ * acompanha o ponteiro sem transição nenhuma. O motivo está no cabeçalho de `Comparador.tsx`.
+ */
+
+/* ==================== a tela vazia ==================== */
+
+.cpr-vazio {
+  padding: var(--e7) 0 var(--e8);
+}
+
+.cpr-solta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e8) var(--e5);
+  text-align: center;
+  background: var(--superficie);
+  border: 1.5px dashed var(--borda-forte);
+  border-radius: var(--r-gg);
+  transition:
+    border-color var(--t-normal) var(--e-suave),
+    background var(--t-normal) var(--e-suave),
+    transform var(--t-entrada) var(--e-saida);
+}
+
+.cpr-solta[data-arrastando='sim'] {
+  border-color: var(--realce);
+  background: var(--realce-fosco);
+  /* Cresce quase nada. O suficiente para o alvo confirmar que recebeu o arrasto. */
+  transform: scale(1.012);
+}
+
+.cpr-solta-icone {
+  color: var(--realce);
+  opacity: 0.75;
+}
+
+.cpr-solta-titulo {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+
+.cpr-solta-sub {
+  margin: 0;
+  max-width: 46ch;
+  color: var(--texto-suave);
+  line-height: 1.6;
+}
+
+.cpr-solta-sub kbd {
+  padding: 1px 5px;
+  font-family: var(--fonte-mono);
+  font-size: 0.82em;
+  background: var(--fundo-fosco);
+  border: 1px solid var(--borda);
+  border-bottom-width: 2px;
+  border-radius: var(--r-p);
+}
+
+.cpr-escolher {
+  margin-top: var(--e3);
+  cursor: pointer;
+}
+
+.cpr-arquivo-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cpr-erro {
+  margin: var(--e2) 0 0;
+  color: var(--ruim);
+}
+
+/* ==================== o palco ==================== */
+
+.cpr {
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: var(--e5) var(--e4) var(--e7);
+}
+
+.cpr-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: var(--e5);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .cpr-grade {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.cmp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+  animation: painel-entra var(--t-revelar) var(--e-saida);
+}
+
+.cmp-palco {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  min-height: 340px;
+  max-height: 74vh;
+  border-radius: var(--r-g);
+  border: 1px solid var(--borda);
+  box-shadow: var(--sombra-2);
+  /*
+   * O xadrez por baixo. Ele não é enfeite: sem ele, não há como distinguir uma região
+   * transparente de uma região branca — e essa é exatamente a diferença que aparece ao converter
+   * um PNG vazado para JPEG. O usuário precisa VER o fundo aparecer.
+   */
+  background-color: var(--fundo-fosco);
+  background-image:
+    linear-gradient(45deg, var(--borda) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--borda) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--borda) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--borda) 75%);
+  background-size: 18px 18px;
+  background-position: 0 0, 0 9px, 9px -9px, -9px 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.cmp-palco[data-arrastavel='divisor'] {
+  cursor: ew-resize;
+}
+
+.cmp-palco[data-arrastavel='panorama'] {
+  cursor: grab;
+}
+
+.cmp-palco[data-arrastavel='panorama']:active {
+  cursor: grabbing;
+}
+
+.cmp-camadas {
+  position: relative;
+  display: grid;
+  max-width: 100%;
+  max-height: 74vh;
+}
+
+.cmp-palco[data-ampliado='nao'] .cmp-camadas {
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+.cmp-img {
+  grid-area: 1 / 1;
+  display: block;
+  max-width: 100%;
+  max-height: 74vh;
+  object-fit: contain;
+  -webkit-user-drag: none;
+}
+
+.cmp-palco[data-ampliado='sim'] .cmp-img {
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  /*
+   * `pixelated` ao ampliar: em 100% o usuário está caçando artefato de compressão, e a
+   * suavização do navegador esconderia justamente o que ele veio procurar.
+   */
+  image-rendering: pixelated;
+}
+
+/* A camada de cima é recortada na posição do divisor: à direita dele, o resultado comprimido. */
+.cmp-img-depois {
+  clip-path: inset(0 0 0 var(--divisor));
+}
+
+/*
+ * A troca da imagem comprimida.
+ *
+ * A imagem só chega aqui depois de decodificada (ver `exibida` em `Comparador.tsx`), então esta
+ * animação nunca cobre um vazio — ela suaviza a substituição de uma imagem pronta por outra.
+ * 200 ms: rápido o bastante para acompanhar o arrasto do controle de qualidade, lento o
+ * bastante para o olho perceber que ALGO mudou.
+ */
+@keyframes cmp-troca {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.cmp-troca {
+  animation: cmp-troca 200ms var(--e-suave);
+}
+
+/* ==================== a alça ==================== */
+
+.cmp-alca {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--divisor);
+  /* Faixa de 30px para o ponteiro pegar, com a linha visível de 2px no meio dela. */
+  width: 30px;
+  transform: translateX(-15px);
+  display: grid;
+  place-items: center;
+  cursor: ew-resize;
+  /* Sem transição: a linha acompanha o dedo em 1:1. Ver o cabeçalho de Comparador.tsx. */
+}
+
+/*
+ * Branco fixo, e nao `var(--superficie)`.
+ *
+ * Esta linha fica sobre a IMAGEM do usuario, nao sobre a interface. Com o token, ela virava
+ * quase preta no tema escuro e sumia contra qualquer foto escura -- e a divisa da comparacao e
+ * justamente o que nunca pode sumir. O par branco + sombra escura se ve sobre qualquer conteudo,
+ * claro ou escuro, nos dois temas.
+ */
+.cmp-alca-linha {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 14px;
+  width: 2px;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 0 0 1px rgb(6 8 12 / 34%);
+}
+
+.cmp-alca-punho {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: var(--texto);
+  background: var(--superficie);
+  border-radius: var(--r-redondo);
+  box-shadow: var(--sombra-2), 0 0 0 1px rgb(6 8 12 / 12%);
+  transition:
+    transform var(--t-toque) var(--e-saida),
+    box-shadow var(--t-toque) var(--e-saida);
+}
+
+.cmp-alca:hover .cmp-alca-punho,
+.cmp-alca:focus-visible .cmp-alca-punho {
+  transform: scale(1.12);
+  box-shadow: var(--sombra-3), 0 0 0 1px var(--realce);
+}
+
+.cmp-alca:focus-visible {
+  outline: none;
+}
+
+/* ==================== rótulos ==================== */
+
+.cmp-rotulo {
+  position: absolute;
+  top: var(--e3);
+  padding: 5px 11px;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  /* Claro fixo pelo mesmo motivo da linha: o fundo da tarja e escuro nos dois temas, entao o
+     texto tem de ser claro nos dois. Com o token, o tema escuro dava escuro sobre escuro. */
+  color: rgb(255 255 255 / 95%);
+  background: rgb(6 8 12 / 62%);
+  border-radius: var(--r-redondo);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  transition: opacity var(--t-normal) var(--e-suave);
+}
+
+.cmp-rotulo-esq {
+  left: var(--e3);
+}
+
+.cmp-rotulo-dir {
+  right: var(--e3);
+}
+
+/* Perto da borda o rótulo daquele lado sai de cena: ele estaria cobrindo o que resta da imagem. */
+.cmp-palco:has(.cmp-alca[aria-valuenow='0']) .cmp-rotulo-esq,
+.cmp-palco:has(.cmp-alca[aria-valuenow='100']) .cmp-rotulo-dir {
+  opacity: 0;
+}
+
+/* ==================== o indicador de trabalho ==================== */
+
+/*
+ * Sem porcentagem, de propósito: uma codificação é um passo opaco do navegador, e não há fração
+ * real para mostrar. Ver o comentário no JSX de `Comparador.tsx`. O que esta fita diz é apenas
+ * "estou trabalhando" — e isso ela diz com honestidade.
+ */
+.cmp-trabalhando {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--t-normal) var(--e-suave);
+  pointer-events: none;
+}
+
+.cmp-trabalhando[data-ativo='sim'] {
+  opacity: 1;
+}
+
+.cmp-trabalhando-fita {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--realce), transparent);
+  animation: cmp-fita 1400ms var(--e-suave) infinite;
+}
+
+@keyframes cmp-fita {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.cmp-ferramentas {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+}
+
+.cmp-centralizar {
+  margin-left: auto;
+}
+
+.cmp-dica {
+  font-size: 0.82rem;
+  color: var(--texto-fraco);
+  animation: cmp-troca var(--t-normal) var(--e-suave);
+}
+
+/* ==================== o painel ==================== */
+
+.cpr-painel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e5);
+  padding: var(--e5);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-g);
+  box-shadow: var(--sombra-1);
+  animation: painel-entra var(--t-revelar) var(--e-saida) 90ms backwards;
+}
+
+.cpr-secao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+}
+
+.cpr-linha-titulo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e2);
+}
+
+.cpr-titulo {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+.cpr-valor {
+  font-family: var(--fonte-mono);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto);
+}
+
+.cpr-valor-fraco {
+  color: var(--texto-suave);
+  font-size: 0.82rem;
+}
+
+.cpr-sobre {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--texto-suave);
+}
+
+/* ---------- formato e degraus ---------- */
+
+.cpr-formatos,
+.cpr-degraus {
+  display: grid;
+  gap: var(--e1);
+}
+
+.cpr-formatos {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.cpr-degraus {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.cpr-formato,
+.cpr-degrau {
+  padding: 9px 4px;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--texto-suave);
+  background: var(--fundo-fosco);
+  border: 1px solid transparent;
+  border-radius: var(--r-m);
+  cursor: pointer;
+  transition:
+    background var(--t-normal) var(--e-suave),
+    color var(--t-normal) var(--e-suave),
+    border-color var(--t-normal) var(--e-suave),
+    transform var(--t-toque) var(--e-saida);
+}
+
+.cpr-formato:hover:not(:disabled),
+.cpr-degrau:hover {
+  color: var(--texto);
+  background: var(--borda);
+}
+
+.cpr-formato:active:not(:disabled),
+.cpr-degrau:active {
+  transform: scale(0.97);
+}
+
+.cpr-formato[data-escolhido='sim'],
+.cpr-degrau[data-escolhido='sim'] {
+  color: var(--realce-forte);
+  background: var(--realce-fosco);
+  border-color: var(--realce-contorno);
+}
+
+.cpr-formato:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+/* ---------- o controle deslizante ---------- */
+
+.cpr-deslizante {
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/*
+ * O WebKit nao tem pseudo-elemento de progresso (o Firefox tem, `::-moz-range-progress`). O
+ * preenchimento sai de um degrade de duas paradas no mesmo ponto, e `--preenchido` vem do React
+ * junto com o valor -- ver `cpr-deslizante` em PainelDeCompressao.tsx.
+ */
+.cpr-deslizante::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: var(--r-redondo);
+  background: linear-gradient(
+    90deg,
+    var(--realce) 0%,
+    var(--realce) var(--preenchido, 0%),
+    var(--fundo-fosco) var(--preenchido, 0%),
+    var(--fundo-fosco) 100%
+  );
+}
+
+.cpr-deslizante::-moz-range-track {
+  height: 5px;
+  border-radius: var(--r-redondo);
+  background: var(--fundo-fosco);
+}
+
+.cpr-deslizante::-moz-range-progress {
+  height: 5px;
+  border-radius: var(--r-redondo);
+  background: var(--realce);
+}
+
+.cpr-deslizante::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  margin-top: -6px;
+  border-radius: var(--r-redondo);
+  background: var(--superficie);
+  border: 2px solid var(--realce);
+  box-shadow: var(--sombra-1);
+  /* Curto: o polegar tem de colar no dedo. A calma da interface não vale para o que se arrasta. */
+  transition: transform var(--t-toque) var(--e-saida);
+}
+
+.cpr-deslizante::-moz-range-thumb {
+  width: 17px;
+  height: 17px;
+  border-radius: var(--r-redondo);
+  background: var(--superficie);
+  border: 2px solid var(--realce);
+  box-shadow: var(--sombra-1);
+}
+
+.cpr-deslizante:hover::-webkit-slider-thumb,
+.cpr-deslizante:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.18);
+}
+
+/* ---------- o resultado ---------- */
+
+.cpr-resultado {
+  gap: var(--e3);
+  padding-top: var(--e4);
+  border-top: 1px solid var(--borda);
+}
+
+.cpr-balanca {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e2);
+}
+
+.cpr-balanca-lado {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cpr-balanca-rotulo {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+.cpr-balanca-valor {
+  font-size: 1.06rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.cpr-balanca-saida {
+  color: var(--realce-forte);
+  /*
+   * O número troca a cada codificação. Sem a transição, ele pisca; com ela, a troca acompanha o
+   * arrasto do controle sem virar um susto a cada passo.
+   */
+  transition: color var(--t-normal) var(--e-suave);
+}
+
+.cpr-balanca-saida[data-medindo='sim'] {
+  color: var(--texto-fraco);
+  font-size: 0.9rem;
+}
+
+.cpr-seta {
+  flex: none;
+  color: var(--texto-fraco);
+}
+
+.cpr-veredito {
+  margin: 0;
+  padding: 7px 11px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  text-align: center;
+  color: var(--bom);
+  background: var(--bom-fosco);
+  border-radius: var(--r-m);
+  animation: cmp-troca var(--t-normal) var(--e-suave);
+}
+
+.cpr-veredito[data-piorou='sim'] {
+  color: var(--atencao);
+  background: var(--atencao-fosco);
+}
+
+.cpr-baixar {
+  width: 100%;
+}
+
+.cpr-trocar {
+  align-self: center;
+}
+
+.cpr-nota {
+  max-width: 1320px;
+  margin: var(--e4) auto 0;
+}
+
+/* ==================== movimento reduzido ==================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .cmp-trabalhando-fita,
+  .cmp-troca,
+  .cpr-veredito,
+  .cmp-dica {
+    animation: none;
+  }
+
+  .cpr-solta[data-arrastando='sim'],
+  .cpr-formato:active:not(:disabled),
+  .cpr-degrau:active {
+    transform: none;
+  }
+
+  /*
+   * A fita de trabalho perde a animação, e sem ela não diria nada. Fica opaca e visível: uma
+   * faixa parada ainda distingue "trabalhando" de "parado", que é a informação dela.
+   */
+  .cmp-trabalhando[data-ativo='sim'] .cmp-trabalhando-fita {
+    background: var(--realce);
+    opacity: 0.6;
+  }
+}
+
+/* ==================== as abas de ferramenta ==================== */
+
+/*
+ * Ficam neste arquivo porque nasceram com a ferramenta de compressão — antes dela havia uma
+ * ferramenta só, e nada a alternar. Ficam no cabeçalho, entre a marca e as ações.
+ */
+
+.abas-ferramenta {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--fundo-fosco);
+  border-radius: var(--r-redondo);
+}
+
+.aba-ferramenta {
+  padding: 6px 15px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--texto-suave);
+  text-decoration: none;
+  border-radius: var(--r-redondo);
+  transition:
+    color var(--t-normal) var(--e-suave),
+    background var(--t-normal) var(--e-suave);
+}
+
+.aba-ferramenta:hover {
+  color: var(--texto);
+}
+
+.aba-ferramenta[data-ativa='sim'] {
+  color: var(--texto);
+  background: var(--superficie);
+  box-shadow: var(--sombra-1);
+}
+
+@media (max-width: 620px) {
+  .abas-ferramenta {
+    order: 3;
+    width: 100%;
+  }
+
+  .aba-ferramenta {
+    flex: 1;
+    text-align: center;
+  }
+}

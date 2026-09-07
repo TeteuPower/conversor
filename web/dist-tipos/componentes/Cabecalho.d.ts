@@ -16,7 +16,13 @@ interface Props {
     capacidades: Capacidades | undefined;
     tema: Tema;
     aoTrocarTema: (t: Tema) => void;
+    /**
+     * Substitui a linha sob o nome. Existe porque nem toda ferramenta fala com o servidor: a de
+     * compressão roda inteira na página, e para ela "conectando…" seria falso — não há nada a
+     * conectar.
+     */
+    subtitulo?: string;
 }
-export declare function Cabecalho({ capacidades, tema, aoTrocarTema }: Props): import("react").JSX.Element;
+export declare function Cabecalho({ capacidades, tema, aoTrocarTema, subtitulo }: Props): import("react").JSX.Element;
 export {};
 //# sourceMappingURL=Cabecalho.d.ts.map

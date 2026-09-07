@@ -45,9 +45,15 @@ interface Props {
   capacidades: Capacidades | undefined;
   tema: Tema;
   aoTrocarTema: (t: Tema) => void;
+  /**
+   * Substitui a linha sob o nome. Existe porque nem toda ferramenta fala com o servidor: a de
+   * compressão roda inteira na página, e para ela "conectando…" seria falso — não há nada a
+   * conectar.
+   */
+  subtitulo?: string;
 }
 
-export function Cabecalho({ capacidades, tema, aoTrocarTema }: Props) {
+export function Cabecalho({ capacidades, tema, aoTrocarTema, subtitulo }: Props) {
   const [enginesAbertas, setEnginesAbertas] = useState(false);
 
   const conversoes = capacidades
@@ -62,10 +68,12 @@ export function Cabecalho({ capacidades, tema, aoTrocarTema }: Props) {
           <div>
             <h1 className="marca-nome">Conversor</h1>
             <p className="marca-sub">
-              {capacidades ? `${conversoes} conversões, nesta máquina` : 'conectando…'}
+              {subtitulo ?? (capacidades ? `${conversoes} conversões, nesta máquina` : 'conectando…')}
             </p>
           </div>
         </div>
+
+        <SeletorDeFerramenta />
 
         <nav className="cabecalho-acoes">
           <button
@@ -84,6 +92,38 @@ export function Cabecalho({ capacidades, tema, aoTrocarTema }: Props) {
       )}
     </header>
   );
+}
+
+/**
+ * A troca entre as ferramentas.
+ *
+ * São âncoras de verdade (`<a href="#...">`), e não botões com `onClick`. Isso entrega de graça
+ * o que um botão exigiria escrever: o histórico do navegador funciona, o botão voltar funciona,
+ * abrir em nova aba funciona, e o endereço pode ser mandado para alguém. Quem lê qual está
+ * aberta é o `usaFerramenta` em `Ferramentas.tsx`.
+ */
+function SeletorDeFerramenta() {
+  const [ativa, setAtiva] = useState(() => atualDaHash());
+  useEffect(() => {
+    const aoTrocar = () => setAtiva(atualDaHash());
+    window.addEventListener('hashchange', aoTrocar);
+    return () => window.removeEventListener('hashchange', aoTrocar);
+  }, []);
+
+  return (
+    <nav className="abas-ferramenta" aria-label="Ferramentas">
+      <a className="aba-ferramenta" href="#converter" data-ativa={ativa === 'converter' ? 'sim' : 'nao'}>
+        Converter
+      </a>
+      <a className="aba-ferramenta" href="#comprimir" data-ativa={ativa === 'comprimir' ? 'sim' : 'nao'}>
+        Comprimir
+      </a>
+    </nav>
+  );
+}
+
+function atualDaHash(): 'converter' | 'comprimir' {
+  return window.location.hash.replace(/^#\/?/, '') === 'comprimir' ? 'comprimir' : 'converter';
 }
 
 /**
