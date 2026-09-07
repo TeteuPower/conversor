@@ -1,4 +1,4 @@
-export type Ferramenta = 'converter' | 'comprimir';
+export type Ferramenta = 'converter' | 'comprimir' | 'remover-fundo';
 /**
  * Qual ferramenta está aberta, decidido pelo hash da URL.
  *

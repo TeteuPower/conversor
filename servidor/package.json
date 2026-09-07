@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@conversor/nucleo": "*",
+    "@hyzyla/pdfium": "^2.1.13",
+    "onnxruntime-node": "^1.29.0",
     "sharp": "^0.33.5"
   },
   "devDependencies": {

@@ -1,0 +1,597 @@
+/*
+ * A ferramenta de remover fundo.
+ *
+ * Usa os tokens de `estilo/base.css` e a barra de `estilo/movimento.css` sem redefinir nada:
+ * são duas ferramentas na mesma casa, e casa com dois vocabulários visuais parece duas
+ * aplicações grudadas.
+ *
+ * Sobre o ritmo das transições: o projeto já tinha decidido que movimento aqui é lento e
+ * deliberado (`--t-revelar`, 680 ms, com `--e-saida`). Isso vale ainda mais nesta tela, porque o
+ * momento em que o recorte aparece é o momento em que o trabalho se mostra. Aparecer de repente
+ * desperdiça isso; aparecer devagar, com o xadrez surgindo por baixo, deixa o olho acompanhar o
+ * que foi tirado.
+ *
+ * Onde o movimento NÃO é lento: o pincel. Ali a resposta é imediata e sem transição nenhuma —
+ * qualquer atraso entre o gesto e o pixel faz a ferramenta parecer quebrada. Movimento lento é
+ * para o que a interface conta; a resposta ao que a mão faz é instantânea.
+ */
+
+.fundo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e5);
+}
+
+/* ==================== zona de entrada ==================== */
+
+.fundo-zona {
+  border: 2px dashed var(--borda-forte);
+  border-radius: var(--r-gg);
+  background: var(--superficie);
+  padding: var(--e8) var(--e5);
+  text-align: center;
+  transition:
+    border-color var(--t-normal) var(--e-suave),
+    background var(--t-normal) var(--e-suave),
+    transform var(--t-normal) var(--e-mola);
+}
+
+.fundo-zona[data-sobre='sim'] {
+  border-color: var(--realce);
+  background: var(--realce-fosco);
+  transform: scale(1.01);
+}
+
+.fundo-zona-miolo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e3);
+  max-width: 46ch;
+  margin: 0 auto;
+}
+
+.fundo-zona h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+.fundo-icone {
+  width: 52px;
+  height: 52px;
+  color: var(--realce);
+  opacity: 0.9;
+}
+
+.fundo-zona-linha {
+  margin: 0;
+  color: var(--texto-suave);
+}
+
+.fundo-zona-nota {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--texto-fraco);
+  line-height: 1.5;
+}
+
+.fundo-zona-atencao {
+  color: var(--atencao);
+}
+
+kbd {
+  font-family: var(--fonte-mono);
+  font-size: 0.8em;
+  padding: 1px 5px;
+  border: 1px solid var(--borda-forte);
+  border-bottom-width: 2px;
+  border-radius: var(--r-p);
+  background: var(--fundo-fosco);
+}
+
+/* ==================== espera ==================== */
+
+.fundo-espera {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-gg);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+}
+
+/*
+ * A prévia da imagem aparece atrás da barra, desfocada.
+ *
+ * Ela serve a uma coisa só: confirmar que a aplicação está trabalhando NAQUELA imagem, e não em
+ * outra. Desfocada porque a imagem nítida competiria com o número, e o número é o que está sendo
+ * comunicado neste momento.
+ */
+.fundo-espera-previa {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(22px) saturate(0.8);
+  transform: scale(1.1);
+  opacity: 0.5;
+  animation: fundo-entra var(--t-revelar) var(--e-saida) both;
+}
+
+.fundo-espera-veu {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgb(from var(--superficie) r g b / 55%), rgb(from var(--superficie) r g b / 88%));
+}
+
+.fundo-espera-miolo {
+  position: relative;
+  width: min(440px, 82%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+  text-align: center;
+  padding: var(--e5) 0;
+}
+
+.fundo-espera-modelo .fundo-espera-miolo h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.fundo-espera-modelo .fundo-espera-miolo p {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.fundo-espera-numero {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--e2);
+}
+
+.fundo-espera-numero strong {
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.fundo-espera-numero span {
+  color: var(--texto-suave);
+  font-size: 0.88rem;
+}
+
+/* A lista de etapas: o que já passou, o que está acontecendo, o que falta. */
+.fundo-etapas {
+  list-style: none;
+  margin: var(--e2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--e1) var(--e3);
+  font-size: 0.78rem;
+}
+
+.fundo-etapas li {
+  color: var(--texto-fraco);
+  transition: color var(--t-normal) var(--e-suave);
+}
+
+.fundo-etapas li[data-estado='feita'] {
+  color: var(--bom);
+}
+
+.fundo-etapas li[data-estado='agora'] {
+  color: var(--texto);
+  font-weight: 600;
+}
+
+/* ==================== erro ==================== */
+
+.fundo-erro {
+  border: 1px solid var(--ruim);
+  background: var(--ruim-fosco);
+  border-radius: var(--r-g);
+  padding: var(--e5);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--e3);
+  animation: fundo-entra var(--t-entrada) var(--e-saida) both;
+}
+
+.fundo-erro h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.fundo-erro p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.fundo-erro-detalhe {
+  margin: 0;
+  width: 100%;
+  max-height: 8em;
+  overflow: auto;
+  font-family: var(--fonte-mono);
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+  background: var(--superficie);
+  border-radius: var(--r-m);
+  padding: var(--e3);
+}
+
+/* ==================== resultado ==================== */
+
+.fundo-resultado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e4);
+  animation: fundo-revela var(--t-revelar) var(--e-saida) both;
+}
+
+/*
+ * A imagem tem teto de altura, e este teto é a decisão de uso mais importante desta tela.
+ *
+ * Sem ele, uma foto em retrato ocupa a janela inteira e os controles caem abaixo da dobra: a
+ * pessoa vê o recorte pronto e não vê como trocar o fundo nem como baixar. Foi assim na primeira
+ * versão, e a captura de tela deixou o problema óbvio. Com 58vh, imagem e controles cabem juntos
+ * numa tela de notebook, que é onde isto vai rodar.
+ *
+ * `margin-inline: auto` com `width: fit-content` mantém a moldura colada na imagem, em vez de
+ * esticar uma faixa vazia dos lados quando a foto é mais alta que larga.
+ */
+.fundo-tela {
+  position: relative;
+  max-height: 58vh;
+  max-width: 100%;
+  width: fit-content;
+  margin-inline: auto;
+  border-radius: var(--r-g);
+  overflow: hidden;
+  border: 1px solid var(--borda);
+  box-shadow: var(--sombra-2);
+  background: var(--superficie);
+}
+
+/*
+ * O xadrez fica ATRÁS do canvas, em CSS, e nunca dentro dele.
+ *
+ * Se fosse desenhado no canvas, ele iria junto no arquivo exportado — o erro clássico de
+ * ferramenta de recorte. Aqui o canvas guarda só o que vai para o arquivo.
+ */
+.fundo-xadrez {
+  position: absolute;
+  inset: 0;
+  --q: 12px;
+  background-image:
+    linear-gradient(45deg, var(--fundo-fosco) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--fundo-fosco) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--fundo-fosco) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--fundo-fosco) 75%);
+  background-size: calc(var(--q) * 2) calc(var(--q) * 2);
+  background-position: 0 0, 0 var(--q), var(--q) calc(var(--q) * -1), calc(var(--q) * -1) 0;
+  background-color: var(--superficie);
+  animation: fundo-entra var(--t-revelar) var(--e-saida) both;
+}
+
+.fundo-canvas {
+  position: relative;
+  display: block;
+  max-height: 58vh;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  touch-action: none;
+}
+
+.fundo-canvas[data-pincel='sim'] {
+  cursor: none;
+}
+
+/* O antes, recortado pelo divisor. */
+.fundo-antes {
+  position: absolute;
+  inset: 0;
+}
+
+.fundo-antes .fundo-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fundo-divisor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--superficie);
+  box-shadow: 0 0 0 1px rgb(16 22 38 / 25%);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.fundo-divisor-alca {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-redondo);
+  background: var(--superficie);
+  box-shadow: var(--sombra-2);
+  display: grid;
+  place-items: center;
+}
+
+.fundo-divisor-alca::before {
+  content: '⟺';
+  font-size: 13px;
+  color: var(--texto-suave);
+}
+
+.fundo-rotulo {
+  position: absolute;
+  top: var(--e3);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--r-redondo);
+  background: rgb(16 22 38 / 55%);
+  color: #fff;
+  pointer-events: none;
+}
+
+.fundo-rotulo-esq {
+  left: var(--e3);
+}
+
+.fundo-rotulo-dir {
+  right: var(--e3);
+}
+
+/*
+ * O cursor do pincel.
+ *
+ * Sem transição de posição, de propósito: ele tem de estar exatamente onde o ponteiro está. Um
+ * cursor que "desliza" atrás do mouse faz errar o alvo, e num pincel de retoque acertar o alvo é
+ * a função inteira.
+ */
+.fundo-cursor {
+  position: absolute;
+  translate: -50% -50%;
+  border-radius: var(--r-redondo);
+  border: 1.5px solid #fff;
+  outline: 1.5px solid rgb(16 22 38 / 55%);
+  pointer-events: none;
+}
+
+.fundo-cursor[data-modo='apagar'] {
+  border-style: dashed;
+}
+
+/* ==================== controles ==================== */
+
+.fundo-controles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e4);
+  padding: var(--e4);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-g);
+  background: var(--superficie);
+}
+
+.fundo-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+}
+
+.fundo-grupo-nome {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+.fundo-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.fundo-cores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e2);
+}
+
+.fundo-cor {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-m);
+  border: 1px solid var(--borda-forte);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition:
+    transform var(--t-toque) var(--e-mola),
+    box-shadow var(--t-normal) var(--e-suave);
+}
+
+.fundo-cor:hover {
+  transform: translateY(-1px);
+}
+
+.fundo-cor[data-ativo='sim'] {
+  box-shadow: 0 0 0 2px var(--superficie), 0 0 0 4px var(--realce);
+}
+
+.fundo-cor-vazia {
+  --q: 6px;
+  background-image:
+    linear-gradient(45deg, var(--borda) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--borda) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--borda) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--borda) 75%);
+  background-size: calc(var(--q) * 2) calc(var(--q) * 2);
+  background-position: 0 0, 0 var(--q), var(--q) calc(var(--q) * -1), calc(var(--q) * -1) 0;
+  background-color: var(--superficie);
+}
+
+.fundo-cor-livre {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: conic-gradient(#f44, #fa0, #4d4, #0cf, #55f, #d4d, #f44);
+}
+
+.fundo-cor-livre input {
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.fundo-cor-imagem {
+  background: var(--fundo-fosco);
+}
+
+.fundo-cor-imagem::after {
+  content: '🖼';
+  font-size: 15px;
+  line-height: 1;
+}
+
+.fundo-segmentado {
+  display: inline-flex;
+  border: 1px solid var(--borda-forte);
+  border-radius: var(--r-m);
+  overflow: hidden;
+}
+
+.fundo-segmentado button {
+  border: 0;
+  background: var(--superficie);
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--texto-suave);
+  transition:
+    background var(--t-toque) var(--e-suave),
+    color var(--t-toque) var(--e-suave);
+}
+
+.fundo-segmentado button[data-ativo='sim'] {
+  background: var(--realce);
+  color: #fff;
+}
+
+.fundo-deslizante {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+}
+
+.fundo-deslizante input {
+  width: 110px;
+}
+
+.fundo-caixa {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+  cursor: pointer;
+}
+
+.fundo-ficha {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--texto-fraco);
+  font-variant-numeric: tabular-nums;
+}
+
+.fundo-avisos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+}
+
+.fundo-avisos li {
+  padding: var(--e3) var(--e4);
+  border-radius: var(--r-m);
+  background: var(--atencao-fosco);
+  color: var(--atencao);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  animation: fundo-entra var(--t-entrada) var(--e-saida) both;
+}
+
+/* ==================== movimento ==================== */
+
+@keyframes fundo-entra {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * A revelação do resultado.
+ *
+ * Sobe pouco e devagar. O ponto não é o deslocamento: é dar ao olho um tempo em que o xadrez
+ * aparece antes do recorte assentar, porque é o xadrez que comunica o que foi TIRADO.
+ */
+@keyframes fundo-revela {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fundo-zona,
+  .fundo-cor,
+  .fundo-segmentado button,
+  .fundo-etapas li {
+    transition-duration: 60ms;
+  }
+
+  .fundo-resultado,
+  .fundo-xadrez,
+  .fundo-espera-previa,
+  .fundo-erro,
+  .fundo-avisos li {
+    animation-duration: 1ms;
+  }
+}

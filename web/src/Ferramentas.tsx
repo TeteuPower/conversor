@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { App } from './App.js';
 import { Comprimir } from './comprimir/Comprimir.js';
+import { RemoverFundo } from './fundo/RemoverFundo.js';
 
-export type Ferramenta = 'converter' | 'comprimir';
+export type Ferramenta = 'converter' | 'comprimir' | 'remover-fundo';
 
 /**
  * Qual ferramenta está aberta, decidido pelo hash da URL.
@@ -27,10 +28,13 @@ export function usaFerramenta(): Ferramenta {
 }
 
 function daHash(): Ferramenta {
-  return window.location.hash.replace(/^#\/?/, '') === 'comprimir' ? 'comprimir' : 'converter';
+  const h = window.location.hash.replace(/^#\/?/, '');
+  return h === 'comprimir' ? 'comprimir' : h === 'remover-fundo' ? 'remover-fundo' : 'converter';
 }
 
 export function Ferramentas() {
   const ferramenta = usaFerramenta();
-  return ferramenta === 'comprimir' ? <Comprimir /> : <App />;
+  if (ferramenta === 'comprimir') return <Comprimir />;
+  if (ferramenta === 'remover-fundo') return <RemoverFundo />;
+  return <App />;
 }

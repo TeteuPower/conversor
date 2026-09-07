@@ -1,1 +1,1 @@
-{"version":3,"file":"Ferramentas.d.ts","sourceRoot":"","sources":["../src/Ferramentas.tsx"],"names":[],"mappings":"AAIA,MAAM,MAAM,UAAU,GAAG,WAAW,GAAG,WAAW,CAAC;AAEnD;;;;;;;;;;;GAWG;AACH,wBAAgB,aAAa,IAAI,UAAU,CAQ1C;AAMD,wBAAgB,WAAW,gCAG1B"}
+{"version":3,"file":"Ferramentas.d.ts","sourceRoot":"","sources":["../src/Ferramentas.tsx"],"names":[],"mappings":"AAKA,MAAM,MAAM,UAAU,GAAG,WAAW,GAAG,WAAW,GAAG,eAAe,CAAC;AAErE;;;;;;;;;;;GAWG;AACH,wBAAgB,aAAa,IAAI,UAAU,CAQ1C;AAOD,wBAAgB,WAAW,gCAK1B"}

@@ -4,3 +4,4 @@ export * from './progresso.js';
 export * from './grafo.js';
 export * from './humano.js';
 export * from './enginesNavegador.js';
+export * from './fundo.js';

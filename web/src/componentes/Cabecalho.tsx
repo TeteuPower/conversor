@@ -118,12 +118,26 @@ function SeletorDeFerramenta() {
       <a className="aba-ferramenta" href="#comprimir" data-ativa={ativa === 'comprimir' ? 'sim' : 'nao'}>
         Comprimir
       </a>
+      <a
+        className="aba-ferramenta"
+        href="#remover-fundo"
+        data-ativa={ativa === 'remover-fundo' ? 'sim' : 'nao'}
+      >
+        Remover fundo
+      </a>
     </nav>
   );
 }
 
-function atualDaHash(): 'converter' | 'comprimir' {
-  return window.location.hash.replace(/^#\/?/, '') === 'comprimir' ? 'comprimir' : 'converter';
+/*
+ * A leitura da hash é a mesma de `Ferramentas.tsx`, e a repetição é de propósito.
+ *
+ * Importar de lá fecharia um ciclo: `Ferramentas` importa `App`, que importa este arquivo. São
+ * três linhas; o ciclo custaria mais que elas.
+ */
+function atualDaHash(): 'converter' | 'comprimir' | 'remover-fundo' {
+  const h = window.location.hash.replace(/^#\/?/, '');
+  return h === 'comprimir' ? 'comprimir' : h === 'remover-fundo' ? 'remover-fundo' : 'converter';
 }
 
 /**

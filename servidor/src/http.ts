@@ -6,6 +6,7 @@ import { formatoDe, trocaExtensao, type Evento, type Opcoes } from '@conversor/n
 import { Armazenamento, nomeSeguro } from './armazenamento.js';
 import { Fila } from './fila.js';
 import type { Instalacao } from './engines/todas.js';
+import { atendeFundo } from './fundo/rotas.js';
 
 export interface Config {
   readonly porta: number;
@@ -103,6 +104,18 @@ async function atende(
       return;
     }
     responde(res, 405, { erro: 'metodo-errado', mensagem: `${req.method} não serve para ${caminho}.` });
+    return;
+  }
+
+  // A ferramenta de remover fundo tem roteador próprio: é outra ferramenta, com ciclo de vida
+  // próprio, e só reaproveita a fila e o armazenamento daqui.
+  if (
+    await atendeFundo(req, res, caminho, {
+      armazenamento,
+      fila,
+      tamanhoMaximo: cfg.tamanhoMaximo,
+    })
+  ) {
     return;
   }
 

@@ -21,7 +21,8 @@
     "tipos": "tsc --build --verbose",
     "vetorizador": "cd vetorizador/fonte && python montar.py . ../vetorizador.html",
     "e2e": "node e2e/fluxo.mjs",
-    "e2e:comprimir": "node e2e/comprimir.mjs"
+    "e2e:comprimir": "node e2e/comprimir.mjs",
+    "e2e:fundo": "node e2e/remover-fundo.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0",
