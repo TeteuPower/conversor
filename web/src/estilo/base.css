@@ -1,0 +1,282 @@
+/*
+ * Os tokens e o reset.
+ *
+ * Sobre a tipografia: nada de fonte da web. Uma aplicação cujo argumento é "nada sai desta
+ * máquina" não pode abrir a primeira tela buscando arquivo no servidor do Google — seria uma
+ * requisição para fora, com o endereço IP do usuário, contradizendo na primeira tela o que a
+ * aplicação promete. A pilha de sistema é o que já está instalado, renderiza nativo em cada
+ * plataforma e custa zero requisição.
+ */
+
+:root {
+  /* ---------- cor: claro ---------- */
+  --fundo: #f4f6f9;
+  --fundo-fosco: #eaedf3;
+  --superficie: #ffffff;
+  --superficie-alta: #ffffff;
+  --borda: #dfe3ea;
+  --borda-forte: #c8cfdb;
+  --texto: #14161c;
+  --texto-suave: #5b6478;
+  --texto-fraco: #8a92a4;
+
+  --realce: #2f66f5;
+  --realce-forte: #1c4fd6;
+  --realce-fosco: #e8eeff;
+  --realce-contorno: #b8ccff;
+
+  --bom: #12855b;
+  --bom-fosco: #e2f6ec;
+  --atencao: #9a6410;
+  --atencao-fosco: #fdf1dd;
+  --ruim: #c0392f;
+  --ruim-fosco: #fdeceb;
+
+  --sombra-1: 0 1px 2px rgb(16 22 38 / 6%), 0 1px 3px rgb(16 22 38 / 4%);
+  --sombra-2: 0 4px 12px rgb(16 22 38 / 8%), 0 1px 3px rgb(16 22 38 / 5%);
+  --sombra-3: 0 18px 48px rgb(16 22 38 / 16%), 0 2px 8px rgb(16 22 38 / 8%);
+
+  /* ---------- forma ---------- */
+  --r-p: 6px;
+  --r-m: 10px;
+  --r-g: 14px;
+  --r-gg: 20px;
+  --r-redondo: 999px;
+
+  /* ---------- espaço ---------- */
+  --e1: 4px;
+  --e2: 8px;
+  --e3: 12px;
+  --e4: 16px;
+  --e5: 24px;
+  --e6: 32px;
+  --e7: 48px;
+  --e8: 64px;
+
+  /* ---------- tipografia ---------- */
+  --fonte:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', Roboto, Ubuntu,
+    Cantarell, 'Noto Sans', sans-serif;
+  --fonte-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+
+  /*
+   * ---------- movimento ----------
+   *
+   * As durações são deliberadamente longas. Isto é uma escolha, não um descuido: a aplicação
+   * lida com arquivos do usuário, e uma interface que se move com calma comunica que nada está
+   * sendo feito às pressas às costas dele. O limite prático é o tempo de reação — passando de
+   * uns 700 ms a animação deixa de acompanhar a ação e começa a atrasar quem já sabe o que quer.
+   *
+   * Por isso a escala é dividida por PAPEL, e não por gosto:
+   *   toque    — resposta ao ponteiro. Tem de ser quase imediata, ou a interface parece pesada.
+   *   normal   — mudança de estado dentro de um elemento que já está na tela.
+   *   entrada  — elemento chegando ou saindo. Pode se dar ao luxo de ser visto.
+   *   revelar  — abertura de painel, conclusão de trabalho. O momento que merece atenção.
+   *   barra    — só a barra de progresso. Ver `movimento.css` para o motivo de ser a mais longa.
+   */
+  --t-toque: 140ms;
+  --t-normal: 320ms;
+  --t-entrada: 520ms;
+  --t-revelar: 680ms;
+  --t-barra: 760ms;
+
+  /* Desacelera no fim, sem voltar: o padrão para quase tudo. */
+  --e-saida: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Simétrica: para o que muda de um estado a outro sem chegar nem sair. */
+  --e-suave: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Passa do ponto e volta. Só em confirmação — usada em movimento contínuo, embaralha. */
+  --e-mola: cubic-bezier(0.34, 1.42, 0.64, 1);
+
+  --largura-max: 880px;
+
+  color-scheme: light dark;
+}
+
+/*
+ * O tema escuro é o padrão do sistema, e há um botão que força um dos dois. A regra do escuro
+ * fica sob `:root:not([data-tema='claro'])` para que o botão vença nos dois sentidos: sem o
+ * `:not`, forçar o claro numa máquina configurada em escuro não teria efeito.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='claro']) {
+    --fundo: #0d0f14;
+    --fundo-fosco: #12151b;
+    --superficie: #161a21;
+    --superficie-alta: #1c212b;
+    --borda: #262c38;
+    --borda-forte: #38404f;
+    --texto: #e7eaf1;
+    --texto-suave: #98a1b3;
+    --texto-fraco: #6b7488;
+
+    --realce: #5b86ff;
+    --realce-forte: #7d9fff;
+    --realce-fosco: #161f36;
+    --realce-contorno: #2c4270;
+
+    --bom: #3ecf8e;
+    --bom-fosco: #12241d;
+    --atencao: #e0a545;
+    --atencao-fosco: #241d10;
+    --ruim: #ff6b5e;
+    --ruim-fosco: #2a1614;
+
+    --sombra-1: 0 1px 2px rgb(0 0 0 / 40%);
+    --sombra-2: 0 4px 14px rgb(0 0 0 / 45%);
+    --sombra-3: 0 20px 52px rgb(0 0 0 / 60%), 0 2px 8px rgb(0 0 0 / 40%);
+  }
+}
+
+:root[data-tema='escuro'] {
+  --fundo: #0d0f14;
+  --fundo-fosco: #12151b;
+  --superficie: #161a21;
+  --superficie-alta: #1c212b;
+  --borda: #262c38;
+  --borda-forte: #38404f;
+  --texto: #e7eaf1;
+  --texto-suave: #98a1b3;
+  --texto-fraco: #6b7488;
+
+  --realce: #5b86ff;
+  --realce-forte: #7d9fff;
+  --realce-fosco: #161f36;
+  --realce-contorno: #2c4270;
+
+  --bom: #3ecf8e;
+  --bom-fosco: #12241d;
+  --atencao: #e0a545;
+  --atencao-fosco: #241d10;
+  --ruim: #ff6b5e;
+  --ruim-fosco: #2a1614;
+
+  --sombra-1: 0 1px 2px rgb(0 0 0 / 40%);
+  --sombra-2: 0 4px 14px rgb(0 0 0 / 45%);
+  --sombra-3: 0 20px 52px rgb(0 0 0 / 60%), 0 2px 8px rgb(0 0 0 / 40%);
+}
+
+/* ==================== reset ==================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--fonte);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--texto);
+  background: var(--fundo);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* A troca de tema também é animada: piscar de branco para preto num clique é agressivo. */
+  transition:
+    background-color var(--t-revelar) var(--e-suave),
+    color var(--t-revelar) var(--e-suave);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+ul,
+ol {
+  list-style: none;
+  padding: 0;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/*
+ * Foco visível só para quem navega por teclado. `:focus-visible` já faz essa distinção, e o anel
+ * é generoso de propósito: numa tela com muitos botões pequenos, um anel discreto se perde.
+ */
+:focus-visible {
+  outline: 2px solid var(--realce);
+  outline-offset: 2px;
+  border-radius: var(--r-p);
+}
+
+/*
+ * ==================== movimento reduzido ====================
+ *
+ * Quem pede menos movimento no sistema tem motivo — de enjoo a vestibular. A regra é agressiva
+ * de propósito: em vez de encurtar as animações, ela as remove. Meia animação ainda desloca a
+ * tela.
+ *
+ * O que NÃO é removido é a transição de largura da barra de progresso; ela é reduzida a quase
+ * nada logo abaixo, em `movimento.css`, porque a barra tem de continuar refletindo o valor real.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==================== esqueleto da página ==================== */
+
+#raiz {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.envelope {
+  width: 100%;
+  max-width: var(--largura-max);
+  margin: 0 auto;
+  padding: 0 var(--e5);
+}
+
+@media (max-width: 560px) {
+  .envelope {
+    padding: 0 var(--e4);
+  }
+}
+
+/* Só para leitor de tela. */
+.so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

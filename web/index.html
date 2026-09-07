@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Conversor</title>
+    <meta
+      name="description"
+      content="Conversor de arquivos que roda na sua máquina. Nenhum arquivo é enviado para a internet."
+    />
+    <!--
+      Nenhuma referência a domínio externo nesta página, e isso é proposital: uma aplicação cujo
+      argumento é "nada sai desta máquina" não pode abrir a primeira tela buscando fonte, ícone ou
+      script fora. Dá para conferir desligando a rede — tudo continua funcionando.
+
+      O ícone é SVG embutido em data URI pelo mesmo motivo, e porque um arquivo .ico separado
+      seria uma requisição a mais para dois retângulos e uma seta.
+    -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f66f5'/%3E%3Cpath d='M9 12.5h10m0 0l-3.5-3.5M19 12.5l-3.5 3.5' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Cpath d='M23 19.5H13m0 0l3.5-3.5M13 19.5l3.5 3.5' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none' opacity='.6'/%3E%3C/svg%3E"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Nada a indexar: isto é uma aplicação local. -->
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body>
+    <div id="raiz"></div>
+    <noscript>
+      <p style="padding: 2rem; font-family: system-ui, sans-serif">
+        O conversor precisa de JavaScript: a interface, a fila e o vetorizador rodam todos no
+        navegador. Sem ele não há como converter nada.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

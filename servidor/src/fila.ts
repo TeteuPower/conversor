@@ -241,8 +241,13 @@ export class Fila {
       };
       r.saida = saida;
       r.estado = 'concluido';
+      // O fluxo NAO emite `progresso` com fracao 1.
+      //
+      // Quem consome a API direto veria esse 1 antes de a saida estar servivel, e concluiria
+      // (com razao) que o arquivo esta pronto. O sinal de pronto e o evento `concluido`, que ja
+      // carrega a saida. O `Progresso` do cliente tambem apara qualquer 1 vindo de etapa, mas
+      // depender disso seria consertar no consumidor um contrato torto na origem.
       if (progresso) progresso.conclui();
-      this.emite(r, { tipo: 'progresso', fracao: 1, etapa: 'fim' });
       this.emite(r, { tipo: 'estado', estado: 'concluido' });
       this.emite(r, { tipo: 'concluido', saida, duracaoMs: Date.now() - (r.iniciadoEm ?? Date.now()) });
       this.fecha(r);

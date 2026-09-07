@@ -71,10 +71,16 @@ describe('Fila', () => {
     expect(tipos.indexOf('etapas')).toBeLessThan(tipos.indexOf('progresso'));
     expect(tipos.at(-1)).toBe('concluido');
 
-    // A última fração é 1, e só chega a 1 no fim.
+    // NENHUM evento de progresso carrega fração 1.
+    //
+    // Quem consome esta API direto veria esse 1 antes de a saída estar servível e concluiria,
+    // com razão, que o arquivo está pronto. O sinal de pronto é o evento `concluido`, que já
+    // vem com a saída dentro. A fila emitia `{fracao: 1, etapa: 'fim'}` antes disso; o cliente
+    // aparava por conta própria, mas consertar no consumidor um contrato torto na origem é
+    // remendo.
     const fracoes = vistos.filter((e) => e.tipo === 'progresso').map((e) => e.fracao);
-    expect(fracoes.at(-1)).toBe(1);
-    expect(fracoes.filter((f) => f === 1)).toHaveLength(1);
+    expect(fracoes.every((f) => f < 1), `alguma fração chegou a 1: ${fracoes.join(', ')}`).toBe(true);
+    expect(vistos.filter((e) => e.tipo === 'concluido')).toHaveLength(1);
     expect(fila.saidaDe(ID)?.nome).toBe('saida.webp');
   });
 

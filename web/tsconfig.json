@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist-tipos",
+    "rootDir": "./src",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["src/**/*.teste.ts", "src/**/*.teste.tsx"],
+  "references": [{ "path": "../nucleo" }]
+}

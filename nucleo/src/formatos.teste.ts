@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FORMATOS, ROTULO_FAMILIA, formatoDe, formatoDoNome } from './formatos.js';
-import { bytes, diferencaTamanho, percentual, trocaExtensao } from './humano.js';
+import { bytes, diferencaTamanho, percentual, percentualInteiro, trocaExtensao } from './humano.js';
 import { FAMILIAS } from './tipos.js';
 
 describe('catálogo', () => {
@@ -96,6 +96,19 @@ describe('humano', () => {
     expect(percentual(0.9999)).toBe('99%');
     expect(percentual(1)).toBe('100%');
     expect(percentual(0)).toBe('0%');
+  });
+
+  it('o número e o texto da porcentagem nunca divergem', () => {
+    // Eles divergiram: o texto vinha desta regra e o `aria-valuenow` da barra vinha de
+    // Math.round, que leva 0,999 a 100. Quem lia a tela via 99% e quem usava leitor de tela
+    // ouvia 100%, com o arquivo ainda não pronto.
+    for (const f of [0, 0.004, 0.5, 0.994, 0.995, 0.999, 0.9999, 1]) {
+      expect(`${percentualInteiro(f)}%`, `divergiu em ${f}`).toBe(percentual(f));
+    }
+    expect(percentualInteiro(0.999)).toBe(99);
+    expect(percentualInteiro(1)).toBe(100);
+    // 0,995 arredondaria para 100; tem de continuar 99.
+    expect(percentualInteiro(0.995)).toBe(99);
   });
 
   it('troca extensão preservando ponto no meio do nome', () => {

@@ -60,14 +60,26 @@ export function restante(ms: number | undefined): string | undefined {
 }
 
 /**
- * Porcentagem inteira, mas sem deixar escapar um 100% antes da hora: 0,999 mostra 99%, porque
- * mostrar 100% com o arquivo ainda não pronto é exatamente o vício que o `Progresso` evita.
+ * Porcentagem inteira, sem deixar escapar um 100% antes da hora.
+ *
+ * `Math.floor` e o teto em 99, e não arredondamento: 0,999 tem de dar 99, porque mostrar 100%
+ * com o arquivo ainda não pronto é exatamente o vício que o `Progresso` existe para evitar — e
+ * 0,999 é justamente o valor que o `Progresso` devolve quando as etapas acabaram e o fim ainda
+ * não veio.
+ *
+ * Esta função devolve NÚMERO, e a de texto abaixo se apoia nela. As duas já divergiram: o texto
+ * da barra usava esta regra e o `aria-valuenow` usava `Math.round`, então quem lia a tela via
+ * 99% e quem usava leitor de tela ouvia 100%, com o botão de baixar ainda ausente. Uma fonte só
+ * é o que impede a divergência de voltar.
  */
-export function percentual(fracao: number): string {
-  if (!Number.isFinite(fracao)) return '0%';
+export function percentualInteiro(fracao: number): number {
+  if (!Number.isFinite(fracao)) return 0;
   const aparado = fracao < 0 ? 0 : fracao > 1 ? 1 : fracao;
-  if (aparado >= 1) return '100%';
-  return `${Math.min(99, Math.floor(aparado * 100))}%`;
+  return aparado >= 1 ? 100 : Math.min(99, Math.floor(aparado * 100));
+}
+
+export function percentual(fracao: number): string {
+  return `${percentualInteiro(fracao)}%`;
 }
 
 /**

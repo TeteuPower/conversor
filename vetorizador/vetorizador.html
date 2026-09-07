@@ -960,6 +960,19 @@ function defDeGradiente(f, id) {
  * nao merece confianca, e isso vai no diagnostico.
  */
 function escolheClasses(rgba, w, h, opc, limiarResiduo, maxCores) {
+  // O relato de progresso e opcional e nao muda resultado nenhum: `andou` some quando ninguem
+  // passa `aoAndar`, e e assim que o vetorizador.html de duplo clique roda. Quem passa e o
+  // worker do app (web/src/engines/vetorizador.worker.ts).
+  //
+  // Ele existe porque esta funcao e a parte demorada. Medido em arte chapada de 900x900, num
+  // total de 1185 ms: analise 8 ms, classes 963 ms, camadas 117 ms, montagem 69 ms.
+  //
+  // E dentro de `classes` o tempo esta quase todo num lugar so: 953 ms na tentativa de K=1, que
+  // e um unico `ajustaPreenchimento` sobre a amostra inteira. Esse bloco e atomico — nao ha
+  // laco por onde relatar de dentro dele. Por isso a barra do app fica parada nessa fracao por
+  // cerca de um segundo, com o brilho de atividade cobrindo a espera, e nao por descuido.
+  const andou = opc.aoAndar || (() => {});
+  andou('classes', 0, 'amostrando');
   const passo = Math.max(1, Math.round(Math.sqrt((w * h) / 40000)));
   const gw = Math.floor((w - 2) / passo), gh = Math.floor((h - 2) / passo);
   if (gw < 1 || gh < 1) return { paleta: null, K: 0, ajustes: [], residuo: 0, tentativas: [] };
@@ -979,7 +992,9 @@ function escolheClasses(rgba, w, h, opc, limiarResiduo, maxCores) {
 
   // Cores dominantes exatas, quando existem, entram como CANDIDATO PRIVILEGIADO: em arte chapada
   // elas sao a paleta verdadeira, e testar esse K logo apos K=1 evita subir 1,2,3... ate chegar la.
+  andou('classes', 0.1, 'procurando as cores dominantes');
   const dominantes = coresDominantes(rgba, w, h, maxCores);
+  andou('classes', 0.45, dominantes ? dominantes.length + ' cores dominantes' : 'sem cor dominante');
   const ordem = [];
   const poe = (k) => { if (k >= 1 && k <= maxCores && !ordem.includes(k)) ordem.push(k); };
   poe(1);
@@ -989,6 +1004,10 @@ function escolheClasses(rgba, w, h, opc, limiarResiduo, maxCores) {
   const tentativas = [];
   let ultimo = null;
   for (const K of ordem) {
+    // A busca para no primeiro K que fecha, entao esta fracao anda ate onde a busca precisou ir
+    // e nao ate 1. E o valor real: a etapa terminou mesmo, so terminou antes.
+    andou('classes', 0.45 + 0.55 * (tentativas.length / ordem.length),
+          'testando ' + K + ' cor' + (K > 1 ? 'es' : ''));
     const paleta = K === 1 ? [mediaDe(amostra)]
                 : (dominantes && dominantes.length <= K ? dominantes : paletaKMeans(rgba, w, h, K));
     const rot = new Int32Array(amostra.length);
@@ -1043,12 +1062,28 @@ const mediaDe = (px) => {
   return s.map((v) => Math.round(v / px.length));
 };
 
+/**
+ * Traca o SVG.
+ *
+ * `opc.aoAndar(etapa, dentro, detalhe)` e opcional: quando dado, e chamado com a etapa corrente
+ * ('analise', 'classes', 'camadas', 'montagem') e quanto dela ja andou, de 0 a 1. Serve para a
+ * barra de progresso do app mostrar valor REAL em vez de animacao inventada — o vetorizador leva
+ * de 1 a 3 segundos, e um segundo e meio disso e uma unica etapa.
+ *
+ * Ela NAO entra no tipo `OpcoesVetor` do nucleo de proposito: as opcoes de um trabalho de
+ * servidor atravessam JSON, e uma funcao ali quebraria a serializacao. Quem passa `aoAndar` e o
+ * worker, que roda no mesmo processo. O `vetorizador.html` de duplo clique nao passa nada e o
+ * codigo se comporta exatamente como antes.
+ */
 function vetorizar(rgba, w, h, opc = {}) {
   const {
     tol = 0.6, grausMin = 42, casas = 3, areaMin = 2,
     limiarResiduo = 6, maxCores = 12, forcarFoto = false,
   } = opc;
+  const andou = opc.aoAndar || (() => {});
+  andou('analise', 0);
   const info = analisa(rgba, w, h);
+  andou('analise', 1, info.cores + ' cores, chapeza ' + info.chapeza.toFixed(2));
   const diag = { ...info, avisos: [], camadas: [] };
 
   if (info.modo === 'foto' && !forcarFoto) {
@@ -1078,6 +1113,7 @@ function vetorizar(rgba, w, h, opc = {}) {
       esc.residuo.toFixed(1) + '/255). O desenho sai fiel na FORMA, aproximado na COR.');
   }
 
+  andou('camadas', 0);
   const camadas = esc.paleta.map((_, k) => ({
     nome: 'c' + k,
     campo: campoClasse(rgba, n, esc.paleta, k),
@@ -1092,6 +1128,7 @@ function vetorizar(rgba, w, h, opc = {}) {
   let nosTotal = 0;
 
   camadas.forEach((cam, idx) => {
+    andou('camadas', idx / camadas.length, 'camada ' + (idx + 1) + ' de ' + camadas.length);
     if (cam.peso < areaMin) return;
     const f = cam.ajuste;
     let pintura;
@@ -1122,10 +1159,12 @@ function vetorizar(rgba, w, h, opc = {}) {
     diag.camadas.push({ ...linha, loops: loops.length, nos });
   });
 
+  andou('montagem', 0);
   diag.nos = nosTotal;
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w +
     '" height="' + h + '">' + (defs.length ? '<defs>' + defs.join('') + '</defs>' : '') +
     corpo.join('') + '</svg>';
+  andou('montagem', 1);
   return { svg, diag };
 }
 

@@ -1,0 +1,292 @@
+/*
+ * O movimento da interface.
+ *
+ * ====================================================================================
+ * A BARRA DE PROGRESSO, QUE É O PONTO DELICADO
+ * ====================================================================================
+ *
+ * O valor da barra é sempre real. Ele vem do `Progresso` do núcleo, que garante que a fração
+ * nunca ande para trás e que só chegue a 1 quando o arquivo está pronto. Nada aqui inventa
+ * progresso.
+ *
+ * O que este arquivo faz é resolver um problema de PERCEPÇÃO. A engine de imagem relata em
+ * quatro etapas, então a fração real de uma conversão para AVIF salta 0 → 0,02 → 0,04 → 0,98 → 1.
+ * Sem transição, a barra pula, fica parada 1,6 s e pula de novo — e uma barra que fica parada
+ * parece travada, mesmo quando o número está certo.
+ *
+ * A transição de 760 ms resolve isso deslizando ATÉ o valor real. Repare na direção: a animação
+ * atrasa a barra em relação à verdade, nunca a adianta. A barra pode estar mostrando 60% quando
+ * o valor real já é 98%; ela nunca mostra 98% quando o real é 60%. É a diferença entre suavizar
+ * e mentir.
+ *
+ * Enquanto a etapa longa roda e o valor não muda, a barra não fica morta: ela tem um brilho que
+ * atravessa devagar. O brilho não carrega informação de quantidade — ele só diz "estou
+ * trabalhando", que é justamente o que a fração parada não consegue dizer.
+ *
+ * Com movimento reduzido, a transição cai para 60 ms em vez de zero: sem nenhuma transição a
+ * barra volta a pular, e o pulo é um movimento brusco — exatamente o que quem pediu menos
+ * movimento quer evitar. E o brilho, que é decorativo, sai de cena.
+ */
+
+.barra {
+  position: relative;
+  height: 6px;
+  border-radius: var(--r-redondo);
+  background: var(--fundo-fosco);
+  overflow: hidden;
+}
+
+.barra-trilho {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--borda);
+  opacity: 0.5;
+}
+
+.barra-preenchimento {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--realce) 0%, var(--realce-forte) 100%);
+  /*
+   * `transform: scaleX` e não `width`: escala roda na composição, sem recalcular layout a cada
+   * quadro. Com `width`, cada evento de progresso reflui o cartão inteiro, e com vários arquivos
+   * convertendo ao mesmo tempo isso aparece como engasgo.
+   */
+  transform-origin: left center;
+  transform: scaleX(var(--fracao, 0));
+  transition: transform var(--t-barra) var(--e-saida);
+  will-change: transform;
+}
+
+/* O brilho que diz "trabalhando" enquanto a fração não muda. Sem informação de quantidade. */
+.barra[data-ativa='sim'] .barra-brilho {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0%) 35%,
+    rgb(255 255 255 / 34%) 50%,
+    rgb(255 255 255 / 0%) 65%,
+    transparent 100%
+  );
+  animation: atravessa 1900ms var(--e-suave) infinite;
+  pointer-events: none;
+}
+
+@keyframes atravessa {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.barra[data-estado='concluido'] .barra-preenchimento {
+  background: linear-gradient(90deg, var(--bom) 0%, var(--bom) 100%);
+}
+
+.barra[data-estado='falhou'] .barra-preenchimento {
+  background: var(--ruim);
+}
+
+.barra[data-estado='cancelado'] .barra-preenchimento {
+  background: var(--texto-fraco);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barra-preenchimento {
+    /* 60 ms, e não zero: sem transição a barra volta a PULAR, e o pulo é movimento brusco. */
+    transition-duration: 60ms !important;
+  }
+
+  .barra-brilho {
+    display: none;
+  }
+}
+
+/*
+ * ====================================================================================
+ * ENTRADA ENCENADA
+ * ====================================================================================
+ *
+ * Quando cinco arquivos são soltos de uma vez, cinco cartões aparecendo no mesmo instante são um
+ * borrão: o olho não tem como contar o que apareceu. Com 55 ms entre um e outro, a mesma
+ * chegada é legível — dá para ver que são cinco e ler os nomes na ordem.
+ *
+ * O escalonamento tem teto. Vinte arquivos a 55 ms seriam 1,1 s até o último aparecer, e o
+ * usuário estaria esperando a interface em vez de o contrário. `--atraso` é calculado no
+ * componente com um limite; ver `atrasoDaEntrada` em `CartaoArquivo.tsx`.
+ */
+
+@keyframes entra {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.entra {
+  animation: entra var(--t-entrada) var(--e-saida) backwards;
+  animation-delay: var(--atraso, 0ms);
+}
+
+@keyframes sai {
+  from {
+    opacity: 1;
+    transform: none;
+    max-height: var(--altura, 200px);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-24px);
+    max-height: 0;
+  }
+}
+
+.sai {
+  animation: sai var(--t-normal) var(--e-suave) forwards;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ==================== o momento da conclusão ==================== */
+
+/*
+ * O traço do visto é desenhado, não aparecido.
+ *
+ * Um ícone que só surge se confunde com o resto da interface que também está mudando naquele
+ * instante. O traço sendo desenhado da esquerda para a direita diz "isto acabou agora" de um
+ * jeito que um ícone estático não diz, e é o único lugar da interface com sobressalto na
+ * curva — a conclusão é o momento que merece.
+ */
+@keyframes desenha-visto {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.visto-traco {
+  stroke-dasharray: 24;
+  animation: desenha-visto 460ms var(--e-saida) 80ms backwards;
+}
+
+@keyframes pulso-bom {
+  0% {
+    box-shadow: 0 0 0 0 rgb(62 207 142 / 34%);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgb(62 207 142 / 0%);
+  }
+}
+
+.pulsa-bom {
+  animation: pulso-bom var(--t-revelar) var(--e-saida);
+}
+
+/* ==================== painel e cortina ==================== */
+
+@keyframes cortina-entra {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(3px);
+  }
+}
+
+.cortina {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgb(6 8 12 / 46%);
+  animation: cortina-entra var(--t-normal) var(--e-suave);
+}
+
+@keyframes painel-entra {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.painel-entra {
+  animation: painel-entra var(--t-revelar) var(--e-saida);
+}
+
+/* ==================== brilho de arraste ==================== */
+
+@keyframes respira {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px var(--realce-contorno), 0 0 0 6px rgb(47 102 245 / 8%);
+  }
+  50% {
+    box-shadow: 0 0 0 1px var(--realce), 0 0 0 14px rgb(47 102 245 / 3%);
+  }
+}
+
+.respira {
+  animation: respira 2400ms var(--e-suave) infinite;
+}
+
+/* ==================== números que sobem ==================== */
+
+/*
+ * A porcentagem muda de valor com frequência, e trocar o glifo de repente chama mais atenção que
+ * o número merece. O deslocamento de 2px acompanhando a troca deixa a mudança perceptível sem
+ * ser um susto — e a duração é curta porque aqui o movimento é acompanhamento, não evento.
+ */
+@keyframes sobe-numero {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.sobe-numero {
+  animation: sobe-numero var(--t-normal) var(--e-saida);
+}
+
+/* Crossfade do rótulo de etapa: o texto troca sem a linha pular de altura. */
+.rotulo-etapa {
+  position: relative;
+  display: inline-block;
+  min-height: 1.4em;
+}
+
+.rotulo-etapa > span {
+  animation: rotulo-troca var(--t-normal) var(--e-suave);
+}
+
+@keyframes rotulo-troca {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
