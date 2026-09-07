@@ -246,13 +246,16 @@ function escolheClasses(rgba, w, h, opc, limiarResiduo, maxCores) {
   // passa `aoAndar`, e e assim que o vetorizador.html de duplo clique roda. Quem passa e o
   // worker do app (web/src/engines/vetorizador.worker.ts).
   //
-  // Ele existe porque esta funcao e a parte demorada. Medido em arte chapada de 900x900, num
-  // total de 1185 ms: analise 8 ms, classes 963 ms, camadas 117 ms, montagem 69 ms.
+  // Ele existe porque esta funcao e a parte demorada. Medido por
+  // `ferramentas/medir-vetorizador.mjs` em arte chapada de 900x900, num total de 1765 ms:
+  // analise 16 ms, classes 1584 ms (90%), camadas 167 ms, montagem ~0 ms.
   //
-  // E dentro de `classes` o tempo esta quase todo num lugar so: 953 ms na tentativa de K=1, que
+  // E dentro de `classes` o tempo esta quase todo num lugar so: 1388 ms na tentativa de K=1, que
   // e um unico `ajustaPreenchimento` sobre a amostra inteira. Esse bloco e atomico — nao ha
   // laco por onde relatar de dentro dele. Por isso a barra do app fica parada nessa fracao por
-  // cerca de um segundo, com o brilho de atividade cobrindo a espera, e nao por descuido.
+  // mais de um segundo, com o brilho de atividade cobrindo a espera, e nao por descuido.
+  //
+  // Quem for otimizar o vetorizador: e esse o alvo, e ele vale 80% do tempo total.
   const andou = opc.aoAndar || (() => {});
   andou('classes', 0, 'amostrando');
   const passo = Math.max(1, Math.round(Math.sqrt((w * h) / 40000)));
@@ -350,7 +353,7 @@ const mediaDe = (px) => {
  * `opc.aoAndar(etapa, dentro, detalhe)` e opcional: quando dado, e chamado com a etapa corrente
  * ('analise', 'classes', 'camadas', 'montagem') e quanto dela ja andou, de 0 a 1. Serve para a
  * barra de progresso do app mostrar valor REAL em vez de animacao inventada — o vetorizador leva
- * de 1 a 3 segundos, e um segundo e meio disso e uma unica etapa.
+ * de 1 a 4 segundos, e mais de um segundo disso e um unico bloco atomico.
  *
  * Ela NAO entra no tipo `OpcoesVetor` do nucleo de proposito: as opcoes de um trabalho de
  * servidor atravessam JSON, e uma funcao ali quebraria a serializacao. Quem passa `aoAndar` e o

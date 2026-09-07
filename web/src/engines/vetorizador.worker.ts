@@ -3,9 +3,9 @@
 /**
  * O vetorizador, num worker.
  *
- * Ele PRECISA de um worker. Medido em arte chapada de 900 × 900, uma vetorização leva 1,2 s de
+ * Ele PRECISA de um worker. Medido em arte chapada de 900 × 900, uma vetorização leva 1,8 s de
  * JavaScript de laço apertado sobre arrays de pixel, sem um único ponto de espera — e num único
- * bloco há 953 ms seguidos. Na thread principal, isso é a interface congelada por mais de um
+ * bloco há 1,4 s seguidos. Na thread principal, isso é a interface congelada por mais de um
  * segundo: a barra de progresso não repinta, a animação de entrada dos cartões para no meio, o
  * botão de cancelar não responde ao clique. Toda a suavidade que este projeto persegue morreria
  * exatamente no momento em que ela mais importa, que é durante a espera.
@@ -41,18 +41,27 @@ export type RespostaDoWorker =
 /**
  * Os pesos das etapas, medidos.
  *
- * Arte chapada de 900 × 900, total de 1185 ms: análise 8 ms, classes 963 ms, camadas 117 ms,
- * montagem 69 ms. Em 400 × 400 e em 1800 × 1800 as proporções se mantêm na mesma ordem — a
- * `classes` fica entre 69% e 89% do total.
+ * `node ferramentas/medir-vetorizador.mjs` — arte chapada de 900 × 900, mediana de três
+ * passadas, total de 1765 ms:
  *
- * A decodificação entra com peso 2 por não ser medida junto (depende do formato de entrada e do
- * decodificador do navegador), mas na prática é pequena: dezenas de milissegundos.
+ *   analise      16 ms    1%
+ *   classes    1584 ms   90%
+ *   camadas     167 ms    9%
+ *   montagem      0 ms    0%
+ *
+ * A proporção muda com o tamanho: `classes` vai de 94% em 400 × 400 a 73% em 1800 × 1800, e
+ * `camadas` faz o caminho inverso, de 6% a 26%. Os pesos abaixo puxam para a IMAGEM GRANDE, e
+ * não para a média: com `camadas` subvalorizado, a barra de uma imagem grande salta de 92% a
+ * 100% no fim, e é justamente na imagem grande que a espera é longa e a barra importa.
+ *
+ * `decodificar` entra com 2 por não ser medida por aquela ferramenta — ela roda em Node, sem
+ * `createImageBitmap`. Na prática é pequena: dezenas de milissegundos.
  */
 const ETAPAS = [
   { id: 'decodificar', rotulo: 'Lendo a imagem', peso: 2 },
   { id: 'analise', rotulo: 'Analisando as cores', peso: 2 },
-  { id: 'classes', rotulo: 'Escolhendo as classes de cor', peso: 75 },
-  { id: 'camadas', rotulo: 'Traçando os contornos', peso: 22 },
+  { id: 'classes', rotulo: 'Escolhendo as classes de cor', peso: 78 },
+  { id: 'camadas', rotulo: 'Traçando os contornos', peso: 17 },
   { id: 'montagem', rotulo: 'Montando o SVG', peso: 1 },
 ];
 

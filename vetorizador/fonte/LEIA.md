@@ -5,6 +5,43 @@ Abre com duplo clique, e nada sai da máquina — a imagem é processada no pró
 
 Estes fontes existem para poder MANTER e TESTAR. O HTML único é gerado a partir deles.
 
+## Dois entregáveis, uma fonte
+
+Estes módulos agora alimentam **duas** coisas:
+
+1. o `vetorizador.html` de duplo clique, gerado pelo `montar.py`, exatamente como antes;
+2. o conversor de arquivos deste repositório, que os importa DIRETO — sem cópia — como a engine
+   de navegador do destino SVG. Ver [ARQUITETURA.md](../../ARQUITETURA.md).
+
+Nada aqui sabe do conversor, e é assim que deve continuar: quem importa é quem se adapta. A única
+concessão é `opc.aoAndar`, opcional, descrita abaixo.
+
+### `opc.aoAndar(etapa, dentro, detalhe)`
+
+Opcional. Quando dada, `vetorizar()` a chama com a etapa corrente (`analise`, `classes`, `camadas`,
+`montagem`) e quanto dela já andou, de 0 a 1. Sem ela, o código se comporta exatamente como antes —
+e é assim que o HTML de duplo clique roda.
+
+Ela existe porque a vetorização leva de 1 a 4 segundos e a barra de progresso do conversor precisa
+mostrar valor real, não animação inventada.
+
+`node ferramentas/medir-vetorizador.mjs`, em arte chapada de 900 × 900, mediana de três passadas,
+1765 ms no total:
+
+| etapa | tempo | fração |
+|---|---:|---:|
+| `analise` | 16 ms | 1% |
+| `classes` | 1584 ms | 90% |
+| `camadas` | 167 ms | 9% |
+| `montagem` | ~0 ms | 0% |
+
+E dentro de `classes`, **1388 ms num único `ajustaPreenchimento`** — a tentativa de K=1, que
+ajusta o preenchimento sobre a amostra inteira. É um bloco atômico: não há laço por onde relatar
+de dentro dele. Quem for mexer em desempenho aqui: é esse o alvo, e ele vale 80% do tempo total.
+
+**`aoAndar` não entra em nenhum tipo compartilhado**, de propósito. As opções de um trabalho de
+servidor atravessam JSON, e uma função ali quebraria a serialização.
+
 ## Gerar o app
 
     python3 montar.py . ../vetorizador.html

@@ -1,0 +1,119 @@
+# Integração contínua.
+#
+# Roda em Linux e em Windows, e as duas plataformas importam de verdade aqui: o projeto foi
+# desenvolvido no Windows, onde `spawn` de `.cmd`, terminação de árvore de processo e nome de
+# arquivo reservado (`CON.png`) se comportam de um jeito que o Linux não reproduz. Só o Linux
+# deixaria passar bug que o usuário encontraria na primeira semana.
+#
+# A verificação da barra de progresso é o coração disto: `npm run e2e` sobe o servidor de
+# verdade, converte arquivos de verdade num navegador de verdade e falha se a barra andar para
+# trás, se chegar a 100% antes de o arquivo estar pronto, ou se qualquer requisição sair de
+# localhost.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Um push novo cancela a execução anterior do mesmo ramo: ninguém precisa do resultado de um
+# commit que já foi substituído.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unidade:
+    name: tipos e testes (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: tipos
+        run: npm run tipos
+
+      - name: testes de unidade
+        run: npm run teste
+
+      - name: build
+        run: npm run build
+
+      # O vetorizador.html é versionado, e é o entregável de duplo clique. Se ele estiver
+      # dessincronizado dos módulos, o commit esqueceu de regerá-lo — e alguém baixaria o HTML com
+      # uma correção que já está no repositório e não no arquivo.
+      - name: o vetorizador.html está em dia com os módulos
+        shell: bash
+        run: |
+          npm run vetorizador
+          if ! git diff --quiet -- vetorizador/vetorizador.html; then
+            echo "::error::vetorizador.html está dessincronizado. Rode 'npm run vetorizador' e faça commit."
+            git diff --stat -- vetorizador/vetorizador.html
+            exit 1
+          fi
+          echo "em dia."
+
+  ponta-a-ponta:
+    name: a barra de progresso não mente
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Só o Chromium: o teste verifica a interface e o protocolo, não o mecanismo de renderização.
+      - name: navegador
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run build
+
+      - name: sobe o servidor
+        run: |
+          npm start > servidor.log 2>&1 &
+          # Espera o servidor responder em vez de dormir um número fixo: em runner lento o sleep
+          # de 5 s falha, e em runner rápido ele desperdiça.
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:7666/api/saude > /dev/null; then
+              echo "no ar depois de ${i} tentativa(s)."
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "::error::o servidor não subiu em 20 s"
+          cat servidor.log
+          exit 1
+
+      - name: fluxo completo no navegador
+        run: npm run e2e
+
+      - name: log do servidor
+        if: always()
+        run: cat servidor.log
+
+      # As capturas contam o que falhou melhor que o log, quando a falha é visual.
+      - name: capturas
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-e2e
+          path: temporario/e2e/*.png
+          if-no-files-found: ignore
