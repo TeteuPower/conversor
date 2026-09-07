@@ -1,0 +1,22 @@
+# O repositório guarda tudo em LF; o checkout no Windows pode usar CRLF à vontade.
+* text=auto eol=lf
+
+# Binários: nunca normalizar.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.gif binary
+*.tiff binary
+*.bmp binary
+*.heic binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+
+# Saída gerada: some do diff, mas continua versionada (é o entregável de duplo clique).
+vetorizador/vetorizador.html linguist-generated=true

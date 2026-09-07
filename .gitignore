@@ -1,0 +1,32 @@
+# dependências
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+build/
+*.tsbuildinfo
+
+# trabalho em disco: entrada e saída dos jobs, nunca versionado
+.conversor/
+temporario/
+
+# ferramentas
+.vite/
+coverage/
+.eslintcache
+*.log
+npm-debug.log*
+
+# editores e SO
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.exemplo
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ambiente local
+.env
+.env.local
