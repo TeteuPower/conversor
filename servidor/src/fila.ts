@@ -224,6 +224,7 @@ export class Fila {
           para: pedido.para,
           opcoes: pedido.opcoes,
           nomeOriginal: pedido.nomeEntrada,
+          nomeSaida: pedido.nomeSaida,
           sinal: r.abortar.signal,
         },
         relator,
@@ -232,10 +233,11 @@ export class Fila {
       if (r.abortar.signal.aborted) return;
 
       const s = await stat(pedido.pasta.saida);
+      // A engine tem a última palavra sobre nome e tipo: ver `ResultadoEngine.nomeSaida`.
       const saida: Saida = {
-        nome: pedido.nomeSaida,
+        nome: resultado.nomeSaida ?? pedido.nomeSaida,
         tamanho: s.size,
-        mime: pedido.mimeSaida,
+        mime: resultado.mimeSaida ?? pedido.mimeSaida,
         url: `/api/trabalhos/${pedido.id}/saida`,
         ...(resultado.diagnostico ? { diagnostico: resultado.diagnostico } : {}),
       };

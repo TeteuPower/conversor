@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { mkdir, open, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 
@@ -112,6 +112,35 @@ export class Armazenamento {
     // `unref` para a varredura não segurar o processo vivo no `npm start` de um script.
     t.unref?.();
     return () => clearInterval(t);
+  }
+}
+
+/**
+ * Grava uma sequência de partes num arquivo, sem juntá-las na memória.
+ *
+ * Existe porque `Buffer.concat(partes)` custa uma CÓPIA do total. O escritor de ZIP e o escritor
+ * de PDF devolvem partes justamente para não haver essa cópia — está escrito no cabeçalho dos
+ * dois —, e a engine de PDF concatenava de todo jeito, contradizendo a documentação do que ela
+ * chamava. Num PDF de vinte páginas o pico de memória era o dobro do necessário sem razão
+ * nenhuma.
+ *
+ * A escrita é sequencial e não paralela: a ordem das partes É o formato do arquivo, e um
+ * `Promise.all` aqui gravaria a tabela de referências antes dos objetos.
+ */
+export async function gravaPartes(
+  caminho: string,
+  partes: readonly Uint8Array[],
+): Promise<number> {
+  const arquivo = await open(caminho, 'w');
+  try {
+    let escritos = 0;
+    for (const parte of partes) {
+      await arquivo.write(parte);
+      escritos += parte.length;
+    }
+    return escritos;
+  } finally {
+    await arquivo.close();
   }
 }
 

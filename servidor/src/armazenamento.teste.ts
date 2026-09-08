@@ -2,7 +2,7 @@ import { mkdtemp, readdir, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { Armazenamento, nomeSeguro } from './armazenamento.js';
+import { Armazenamento, gravaPartes, nomeSeguro } from './armazenamento.js';
 
 const bases: string[] = [];
 async function baseNova(): Promise<string> {
@@ -74,6 +74,37 @@ describe('varredura', () => {
     await writeFile(join(base, 'coisa-que-nao-e-trabalho.txt'), 'x');
     expect(await a.varre()).toBe(0);
     expect(await readdir(base)).toContain('coisa-que-nao-e-trabalho.txt');
+  });
+});
+
+describe('gravaPartes', () => {
+  it('grava as partes na ordem, sem concatenar', async () => {
+    // A ordem E o formato do arquivo: o escritor de PDF poe a tabela de referencias no fim, e
+    // gravar fora de ordem produziria um arquivo que nao abre.
+    const base = await baseNova();
+    const alvo = join(base, 'junto');
+    const partes = ['%PDF-', '1.4|', 'corpo', '|%%EOF'].map((t) => new Uint8Array(Buffer.from(t)));
+    const escritos = await gravaPartes(alvo, partes);
+
+    const { readFile } = await import('node:fs/promises');
+    expect(await readFile(alvo, 'utf-8')).toBe('%PDF-1.4|corpo|%%EOF');
+    expect(escritos).toBe(partes.reduce((n, p) => n + p.length, 0));
+  });
+
+  it('sobrescreve o que estava la, em vez de acrescentar', async () => {
+    const base = await baseNova();
+    const alvo = join(base, 'duas-vezes');
+    await gravaPartes(alvo, [new Uint8Array(Buffer.from('primeiro conteudo longo'))]);
+    await gravaPartes(alvo, [new Uint8Array(Buffer.from('curto'))]);
+    const { readFile } = await import('node:fs/promises');
+    expect(await readFile(alvo, 'utf-8')).toBe('curto');
+  });
+
+  it('aceita lista vazia sem explodir, criando um arquivo vazio', async () => {
+    const base = await baseNova();
+    const alvo = join(base, 'vazio');
+    expect(await gravaPartes(alvo, [])).toBe(0);
+    expect((await stat(alvo)).size).toBe(0);
   });
 });
 

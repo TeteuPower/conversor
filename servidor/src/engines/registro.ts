@@ -46,6 +46,14 @@ export interface Tarefa {
   readonly opcoes: Opcoes;
   readonly nomeOriginal: string;
   /**
+   * O nome que a saída teria pelo destino escolhido — já com a extensão trocada e higienizado.
+   *
+   * A engine usa isto como base quando precisa batizar VÁRIOS arquivos (uma imagem por página de
+   * PDF, dentro de um pacote). Partir de `nomeOriginal` faria os nomes de dentro do pacote
+   * herdarem a extensão da ENTRADA.
+   */
+  readonly nomeSaida: string;
+  /**
    * Disparado quando o trabalho é cancelado. Toda engine que chama processo externo ou faz laço
    * longo tem obrigação de escutar: sem isso, cancelar na interface não para o trabalho, só
    * esconde ele — e a máquina segue queimando CPU pelo que ninguém mais quer.
@@ -69,6 +77,18 @@ export interface Relator {
 export interface ResultadoEngine {
   /** O que a engine tem a dizer sobre esta conversão. Vai para a interface. */
   readonly diagnostico?: Record<string, unknown>;
+  /**
+   * Nome e tipo da saída, quando a engine entrega algo diferente do que o destino sugere.
+   *
+   * O caso que forçou isto: rasterizar um PDF de dez páginas para PNG não pode devolver um PNG —
+   * dez páginas não cabem numa imagem. A saída é um `.zip` com uma imagem por página. Sem estes
+   * campos, o download sairia batizado `documento.png` com um ZIP dentro, e o sistema
+   * operacional tentaria abrir como imagem.
+   *
+   * Quem não precisa disso simplesmente não devolve, e o nome sai do destino escolhido.
+   */
+  readonly nomeSaida?: string;
+  readonly mimeSaida?: string;
 }
 
 /**
