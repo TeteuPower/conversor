@@ -282,7 +282,7 @@ export const engineImagem: Engine = {
     // Achatar contra um fundo quando o destino não guarda transparência. Sem isto, o libvips
     // compõe contra preto, e um logo desenhado em preto sobre fundo vazado sai um retângulo
     // preto — tecnicamente correto, inútil na prática.
-    const perdeAlfa = destino.temAlfa !== true && meta.hasAlpha === true;
+    const perdeAlfa = destino.temAlfa !== true && (await temTransparencia(bytes, meta));
     if (perdeAlfa) {
       const fundo = opc.fundo ?? '#FFFFFF';
       img = img.flatten({ background: fundo });
@@ -378,6 +378,28 @@ function aplicaCodificador(img: sharp.Sharp, para: string, opc: OpcoesImagem): s
       return img.tiff({ compression: 'lzw' });
     default:
       return img.toFormat(para as keyof sharp.FormatEnum);
+  }
+}
+
+/**
+ * Existe pixel transparente de verdade nesta imagem?
+ *
+ * `metadata().hasAlpha` responde outra pergunta: se existe um CANAL alfa. Um PNG rasterizado a
+ * partir de SVG tem o canal e é inteiramente opaco, e confiar no `hasAlpha` fazia a aplicação
+ * avisar "o que era transparente ficou branco" sobre uma imagem em que nada era transparente.
+ * Aviso que não corresponde ao arquivo gasta a credibilidade dos avisos que correspondem.
+ *
+ * `stats().isOpaque` varre os pixels, então custa uma passada. Só vale a pena chamar quando o
+ * canal existe E o destino não guarda alfa — fora disso a resposta não muda nada.
+ */
+async function temTransparencia(bytes: Buffer, meta: sharp.Metadata): Promise<boolean> {
+  if (meta.hasAlpha !== true) return false;
+  try {
+    return !(await sharp(bytes, { limitInputPixels: false }).stats()).isOpaque;
+  } catch {
+    // Se a estatística falhar, o palpite conservador é assumir que há transparência: achatar uma
+    // imagem opaca não muda nada, e o aviso a mais é melhor que uma composição contra preto.
+    return true;
   }
 }
 
