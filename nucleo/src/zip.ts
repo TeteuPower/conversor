@@ -25,6 +25,14 @@
  * O CRC-32 é calculado de verdade. Um ZIP com CRC zerado abre em algumas ferramentas e é
  * recusado por outras, entre elas o Explorer do Windows — que é justamente onde este arquivo vai
  * cair.
+ *
+ * ---
+ *
+ * Este arquivo devolve BYTES, e nunca um `Blob`. Ele mora no núcleo, que é compartilhado com o
+ * servidor, e `Blob`/`BlobPart` são tipos de DOM: importá-los aqui daria ao código de servidor
+ * acesso a `document` e companhia, que é justamente o tipo de erro que o compilador deveria
+ * pegar. Cada lado embrulha as partes como precisa — a web num `Blob` (ver `envelope.ts` lá), o
+ * servidor gravando parte por parte no disco.
  */
 
 /**
@@ -49,8 +57,16 @@ const MAX_16 = 0xffff;
 /** Acima disto, o campo de 32 bits não serve mais e o ZIP64 entra. */
 const LIMITE_ZIP64 = 0xfffffffe;
 
-export function montaZip(arquivos: readonly ArquivoDoZip[]): Blob {
-  const pedacos: BlobPart[] = [];
+/**
+ * Monta o pacote e devolve as PARTES, na ordem, sem concatenar.
+ *
+ * Devolver partes em vez de um `Blob` é o que deixa este arquivo servir aos dois lados. No
+ * navegador, o construtor de `Blob` junta as partes sem copiar — daí `montaZip` logo abaixo. No
+ * servidor não existe motivo para materializar o pacote inteiro na memória: as partes vão para o
+ * disco uma a uma, e um pacote de dez páginas de PDF em PNG pode passar de centenas de megabytes.
+ */
+export function montaZipPartes(arquivos: readonly ArquivoDoZip[]): Bytes[] {
+  const pedacos: Bytes[] = [];
   const centrais: Bytes[] = [];
   let deslocamento = 0;
 
@@ -157,8 +173,9 @@ export function montaZip(arquivos: readonly ArquivoDoZip[]): Blob {
   vf.setUint32(16, precisaZip64Final ? SATURADO_32 : inicioCentral, true);
   pedacos.push(fim);
 
-  return new Blob(pedacos, { type: 'application/zip' });
+  return pedacos;
 }
+
 
 /** Campo extra 0x0001 do ZIP64: os tamanhos de verdade, em 64 bits. */
 function extraZip64(original: number, comprimido: number, deslocamento?: number): Bytes {

@@ -5,3 +5,4 @@ export * from './grafo.js';
 export * from './humano.js';
 export * from './enginesNavegador.js';
 export * from './fundo.js';
+export * from './zip.js';

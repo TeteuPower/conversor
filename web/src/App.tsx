@@ -5,6 +5,7 @@ import {
   ID_VETORIZADOR,
   bytes,
   formatoDoNome,
+  nomesUnicos,
   percentual,
   type Aresta,
   type Capacidades,
@@ -34,10 +35,10 @@ import { BarraDeProgresso } from './componentes/BarraDeProgresso.js';
 import { Cabecalho, usaTema } from './componentes/Cabecalho.js';
 import { CartaoArquivo } from './componentes/CartaoArquivo.js';
 import { OQueDaHoje } from './componentes/OQueDaHoje.js';
+import { zipComoBlob } from './envelope.js';
 import { PainelDeOpcoes } from './componentes/PainelDeOpcoes.js';
 import { SeletorDeFormato } from './componentes/SeletorDeFormato.js';
 import { ZonaDeSoltar } from './componentes/ZonaDeSoltar.js';
-import { montaZip, nomesUnicos } from './zip.js';
 
 /**
  * Quantas vetorizações ao mesmo tempo: 2.
@@ -284,7 +285,7 @@ export function App() {
           data: new Date(),
         })),
       );
-      const zip = montaZip(arquivos);
+      const zip = zipComoBlob(arquivos);
       const url = URL.createObjectURL(zip);
       const a = document.createElement('a');
       a.href = url;
@@ -413,17 +414,24 @@ export function App() {
                 </ul>
 
                 <div className="acoes">
-                  <button
-                    className="botao-principal botao-grande"
-                    onClick={() => void converteTudo()}
-                    disabled={pendentes.length === 0 || conjunto.ativos > 0}
-                  >
-                    {conjunto.ativos > 0
-                      ? 'Convertendo…'
-                      : pendentes.length === 1
-                        ? 'Converter'
-                        : `Converter ${pendentes.length} arquivos`}
-                  </button>
+                  {/*
+                    Com a fila toda convertida o botão SAI DE CENA, em vez de ficar desabilitado
+                    dizendo "Converter 0 arquivos" — que era o rótulo que a contagem produzia, e
+                    não é um rótulo. A ação principal naquele momento é baixar, e é ela que fica.
+                  */}
+                  {(pendentes.length > 0 || conjunto.ativos > 0) && (
+                    <button
+                      className="botao-principal botao-grande"
+                      onClick={() => void converteTudo()}
+                      disabled={pendentes.length === 0 || conjunto.ativos > 0}
+                    >
+                      {conjunto.ativos > 0
+                        ? 'Convertendo…'
+                        : pendentes.length === 1
+                          ? 'Converter'
+                          : `Converter ${pendentes.length} arquivos`}
+                    </button>
+                  )}
 
                   {prontos.length > 1 && (
                     <button
