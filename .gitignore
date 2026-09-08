@@ -7,6 +7,12 @@ dist/
 build/
 *.tsbuildinfo
 
+# O outDir do web se chama `dist-tipos`, e o padrão `dist/` acima não o alcança. Por causa
+# disso os 48 arquivos gerados dele entraram no repositório sem que ninguém quisesse — e a
+# árvore ficava suja a cada `tsc`, com diferença de source map que não diz nada a ninguém.
+# Saída de compilador não se versiona; ela se refaz com `npm run build`.
+dist-tipos/
+
 # trabalho em disco: entrada e saída dos jobs, nunca versionado
 .conversor/
 temporario/
