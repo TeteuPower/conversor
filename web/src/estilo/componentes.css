@@ -1119,6 +1119,32 @@
   color: var(--texto-fraco);
 }
 
+.par select {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: var(--r-m);
+  border: 1px solid var(--borda);
+  background: var(--superficie);
+  font-size: 13.5px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--t-toque) var(--e-suave);
+}
+
+.par select:focus {
+  border-color: var(--realce);
+}
+
+.campo-dica code {
+  font-family: var(--fonte-mono);
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--fundo-fosco);
+  border: 1px solid var(--borda);
+}
+
 .caixa {
   display: flex;
   align-items: flex-start;

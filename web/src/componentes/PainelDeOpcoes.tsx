@@ -33,6 +33,36 @@ export function PainelDeOpcoes({ de, para, engine, opcoes, aoAplicar, aoFechar }
   const paraPng = para === 'png';
   const perdeAlfa = destino?.temAlfa !== true && origem?.temAlfa === true;
 
+  // As duas direções do eixo do PDF pedem controles diferentes: sair de um PDF é escolher quais
+  // páginas e em que resolução; entrar num PDF é escolher o tamanho da folha e a compressão.
+  const dePdf = de === 'pdf';
+  const paraPdf = para === 'pdf';
+  const paraTexto = para === 'txt';
+  const emFolha = (o.pdfPagina ?? 'imagem') !== 'imagem';
+
+  /*
+   * Indo para PDF, a imagem entra como JPEG quando "sem perda" está desmarcado — e aí a
+   * qualidade manda no resultado. Sem isto, o painel não mostrava controle nenhum de qualidade
+   * para PDF, e a engine usava 82 sem que ninguém pudesse mexer. O usuário tinha uma opção
+   * escondida.
+   */
+  const embuteSemPerda = o.pdfSemPerda ?? origem?.comPerda !== true;
+  const qualidadeImporta = (temPerda || (paraPdf && !embuteSemPerda)) && !paraTexto;
+
+  /*
+   * A paleta indexada do PNG tem padrão DIFERENTE conforme a engine, e a interface tem de dizer
+   * o mesmo que a engine faz.
+   *
+   * Na engine de imagem ela vem ligada: em arte chapada indexar é quase grátis e corta o arquivo
+   * quase pela metade. Na engine de PDF ela vem DESLIGADA, e por um motivo bom — uma página de
+   * PDF é texto e linha, e indexar cor mastiga a borda do antisserrilhado da fonte.
+   *
+   * A caixa aparecia marcada nos dois casos, então quem rasterizava um PDF via "ligado" na tela
+   * e recebia desligado no arquivo. É exatamente o tipo de mentira de interface que este projeto
+   * recusa em toda parte, e ela tinha entrado por descuido.
+   */
+  const paletaLigadaPorPadrao = !dePdf;
+
   useEffect(() => {
     const noTeclado = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -72,10 +102,14 @@ export function PainelDeOpcoes({ de, para, engine, opcoes, aoAplicar, aoFechar }
         </header>
 
         <div className="opcoes-corpo">
-          {temPerda && (
+          {qualidadeImporta && (
             <Campo
               rotulo="Qualidade"
-              dica={`${destino!.nome} tem perda. Entre 80 e 85 o artefato deixa de ser visível em tela sem o arquivo crescer pelo detalhe que ninguém enxerga.`}
+              dica={
+                paraPdf
+                  ? 'A imagem entra no PDF como JPEG, e esta é a qualidade dele. Entre 80 e 85 o artefato deixa de ser visível em tela.'
+                  : `${destino!.nome} tem perda. Entre 80 e 85 o artefato deixa de ser visível em tela sem o arquivo crescer pelo detalhe que ninguém enxerga.`
+              }
             >
               <div className="deslizante">
                 <input
@@ -92,7 +126,115 @@ export function PainelDeOpcoes({ de, para, engine, opcoes, aoAplicar, aoFechar }
             </Campo>
           )}
 
-          {!ehVetor && (
+          {dePdf && (
+            <Campo
+              rotulo="Páginas"
+              dica={
+                paraTexto
+                  ? 'Quais páginas ler. Deixe "todas" para o documento inteiro.'
+                  : 'Quais páginas rasterizar. Mais de uma vira um .zip, com uma imagem por página.'
+              }
+            >
+              <div className="par">
+                <input
+                  type="text"
+                  placeholder="todas"
+                  value={o.paginas ?? ''}
+                  onChange={(e) => muda('paginas', e.target.value || undefined)}
+                  aria-label="Páginas"
+                />
+              </div>
+              <p className="campo-dica">
+                Aceita <code>3</code>, <code>2-5</code> e <code>1,4,7-9</code>.
+              </p>
+            </Campo>
+          )}
+
+          {dePdf && !paraTexto && (
+            <Campo
+              rotulo="Resolução"
+              dica="Em pontos por polegada. 150 serve para tela e impressão caseira; 300 é o de gráfica, e dobra o tempo e a memória."
+            >
+              <div className="deslizante">
+                <input
+                  type="range"
+                  min={72}
+                  max={600}
+                  step={6}
+                  value={o.dpi ?? 150}
+                  onChange={(e) => muda('dpi', Number(e.target.value))}
+                  aria-label="Resolução em DPI"
+                />
+                <output>{o.dpi ?? 150} dpi</output>
+              </div>
+            </Campo>
+          )}
+
+          {paraPdf && (
+            <>
+              <Campo
+                rotulo="Tamanho da página"
+                dica="Do tamanho da imagem não deixa margem branca que ninguém pediu. Em folha, a imagem entra inteira e centralizada."
+              >
+                <div className="par">
+                  <select
+                    value={o.pdfPagina ?? 'imagem'}
+                    onChange={(e) => muda('pdfPagina', e.target.value as 'imagem' | 'a4' | 'carta')}
+                    aria-label="Tamanho da página"
+                  >
+                    <option value="imagem">Do tamanho da imagem</option>
+                    <option value="a4">A4</option>
+                    <option value="carta">Carta</option>
+                  </select>
+                </div>
+              </Campo>
+
+              {emFolha && (
+                <Campo rotulo="Margem" dica="Em milímetros, nas quatro bordas.">
+                  <div className="deslizante">
+                    <input
+                      type="range"
+                      min={0}
+                      max={40}
+                      step={1}
+                      value={o.pdfMargem ?? 10}
+                      onChange={(e) => muda('pdfMargem', Number(e.target.value))}
+                      aria-label="Margem em milímetros"
+                    />
+                    <output>{o.pdfMargem ?? 10} mm</output>
+                  </div>
+                </Campo>
+              )}
+
+              <Campo rotulo="Como embutir a imagem">
+                <label className="caixa">
+                  <input
+                    type="checkbox"
+                    checked={o.pdfSemPerda ?? origem?.comPerda !== true}
+                    onChange={(e) => muda('pdfSemPerda', e.target.checked)}
+                  />
+                  <span>
+                    Embutir sem perda
+                    <em>
+                      Ligado por padrão para origem sem perda (PNG, TIFF, GIF, SVG) e desligado
+                      para origem com perda (JPEG, WebP, AVIF, HEIC) — quem tem um PNG de captura
+                      de tela se importa com o texto nítido, e quem tem um JPEG já aceitou a
+                      perda. Em foto, sem perda deixa o PDF bem maior.
+                      {origem?.ext === 'jpg' && (
+                        <>
+                          {' '}
+                          Neste JPEG, desligado significa que os bytes originais entram no PDF sem
+                          serem recomprimidos.
+                        </>
+                      )}
+                    </em>
+                  </span>
+                </label>
+              </Campo>
+            </>
+          )}
+
+          {!ehVetor && !dePdf && (
             <Campo
               rotulo="Redimensionar"
               dica="Deixe em branco para manter o tamanho original. Preencher só um dos dois mantém a proporção."
@@ -132,7 +274,7 @@ export function PainelDeOpcoes({ de, para, engine, opcoes, aoAplicar, aoFechar }
             </Campo>
           )}
 
-          {perdeAlfa && (
+          {perdeAlfa && !paraTexto && (
             <Campo
               rotulo="Cor de fundo"
               dica={`${destino!.nome} não guarda transparência. O que era transparente recebe esta cor.`}
@@ -154,22 +296,22 @@ export function PainelDeOpcoes({ de, para, engine, opcoes, aoAplicar, aoFechar }
               <label className="caixa">
                 <input
                   type="checkbox"
-                  checked={o.paletaIndexada !== false}
+                  checked={o.paletaIndexada ?? paletaLigadaPorPadrao}
                   onChange={(e) => muda('paletaIndexada', e.target.checked)}
                 />
                 <span>
                   Reduzir a paleta indexada
                   <em>
-                    Medido: em arte chapada custa 68 ms contra 15 ms e sai quase pela metade
-                    (6 kB contra 11 kB). Em foto o preço vira 829 ms — desligue ao converter
-                    muitas fotos de uma vez.
+                    {dePdf
+                      ? 'Desligada por padrão para página de PDF: indexar cor mastiga a borda do antisserrilhado da fonte, e página de PDF é texto e linha. Ligue se a página for um desenho chapado.'
+                      : 'Medido: em arte chapada custa 68 ms contra 15 ms e sai quase pela metade (6 kB contra 11 kB). Em foto o preço vira 829 ms — desligue ao converter muitas fotos de uma vez.'}
                   </em>
                 </span>
               </label>
             </Campo>
           )}
 
-          {!ehVetor && (
+          {!ehVetor && !dePdf && !paraPdf && (
             <Campo rotulo="Metadados">
               <label className="caixa">
                 <input
