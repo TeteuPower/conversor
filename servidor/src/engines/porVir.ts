@@ -57,33 +57,38 @@ const PLANEJADAS: readonly EnginePlanejada[] = [
     ],
   },
   {
-    id: 'pdf',
-    nome: 'Ghostscript e pdfium',
+    id: 'ghostscript',
+    nome: 'Ghostscript e libcdr',
+    /*
+     * O que sobrou depois do pdfium.
+     *
+     * A rasterização de PDF e a montagem de PDF a partir de imagem saíram desta lista: quem faz
+     * agora é a engine `pdf`, com o pdfium em WebAssembly. O que continua faltando é o que o
+     * pdfium não faz:
+     *
+     * - **comprimir PDF preservando o texto.** Dá para rasterizar cada página e remontar, e isso
+     *   ENCOLHE o arquivo — mas destrói o texto e o vetor, virando foto de papel. Chamar isso de
+     *   compressão seria mentir sobre o que aconteceu, então fica de fora até haver Ghostscript.
+     * - **PostScript e formatos de vetor fechados** (EPS, AI, CorelDRAW, metarquivo do Windows).
+     */
     descricao:
-      'Rasteriza página de PDF em imagem, e monta PDF a partir de imagem. Também é o que ' +
-      'comprime PDF sem estragar o texto.',
+      'Comprime PDF preservando o texto, e converte PostScript e vetor de formato fechado. É o ' +
+      'que o pdfium não faz.',
     marco: 'marco 2',
     de: [],
     para: [],
     extras: [
-      ['pdf', 'png'],
-      ['pdf', 'jpg'],
-      ['pdf', 'webp'],
-      ['pdf', 'tiff'],
       ['pdf', 'svg'],
-      ['png', 'pdf'],
-      ['jpg', 'pdf'],
-      ['tiff', 'pdf'],
-      ['webp', 'pdf'],
-      ['heic', 'pdf'],
-      ['svg', 'pdf'],
-      ['eps', 'pdf'],
       ['pdf', 'eps'],
+      ['eps', 'pdf'],
+      ['eps', 'svg'],
       ['ai', 'pdf'],
       ['ai', 'svg'],
-      ['eps', 'svg'],
       ['cdr', 'svg'],
+      ['cdr', 'pdf'],
       ['emf', 'svg'],
+      ['emf', 'pdf'],
+      ['wmf', 'svg'],
     ],
   },
   {
@@ -165,9 +170,25 @@ const PLANEJADAS: readonly EnginePlanejada[] = [
   {
     id: 'ocr',
     nome: 'Tesseract',
+    /*
+     * Aqui há uma tensão de modelagem que vale registrar antes de ela morder alguém.
+     *
+     * `pdf → txt` já existe, pela engine `pdf`: ela lê o texto que o PDF CARREGA como texto. O
+     * Tesseract faria outra coisa com o mesmo par — ler o texto que está desenhado nos pixels de
+     * uma digitalização. São conversões diferentes com a mesma origem e o mesmo destino, e o
+     * grafo tem uma aresta por par.
+     *
+     * Então `pdf → txt` e `imagem → pdf` saíram dos extras: declará-los aqui criaria uma aresta
+     * indisponível que nunca seria escolhida, porque a real tem precedência — e a interface
+     * mostraria "chega no marco 5" num destino que já funciona.
+     *
+     * Quando o Tesseract entrar, o caminho é uma OPÇÃO na conversão que já existe ("ler o texto
+     * dos pixels quando não houver texto embutido"), e não uma aresta concorrente. O aviso que a
+     * engine `pdf` já emite ao encontrar uma página sem texto é exatamente o gancho para isso.
+     */
     descricao:
-      'Lê o texto de imagem e de PDF digitalizado. Não é conversão de formato: é conversão de ' +
-      'pixel em texto, e por isso os destinos dele são documento.',
+      'Lê o texto desenhado nos pixels de uma digitalização. Não é conversão de formato: é ' +
+      'conversão de pixel em texto.',
     marco: 'marco 5',
     de: [],
     para: [],
@@ -175,12 +196,10 @@ const PLANEJADAS: readonly EnginePlanejada[] = [
       ['png', 'txt'],
       ['jpg', 'txt'],
       ['tiff', 'txt'],
-      ['pdf', 'txt'],
+      ['webp', 'txt'],
       ['png', 'docx'],
       ['jpg', 'docx'],
       ['pdf', 'docx'],
-      ['png', 'pdf'],
-      ['tiff', 'pdf'],
     ],
   },
 ];

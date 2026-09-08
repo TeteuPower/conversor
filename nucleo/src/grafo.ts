@@ -153,6 +153,9 @@ const PREFERIDO: Readonly<Record<string, string>> = {
   raw: 'jpg',
   // TIFF de digitalização costuma virar PDF, não outra imagem.
   tiff: 'pdf',
+  // Quem solta um PDF quase sempre quer ver a página como imagem — para colar num slide, num
+  // chat, num documento. Extrair o texto é o outro caso, e é um clique de distância.
+  pdf: 'png',
   // Documento e apresentação: o destino é quase sempre PDF, para enviar a alguém.
   docx: 'pdf',
   doc: 'pdf',

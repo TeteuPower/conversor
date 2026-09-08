@@ -8,13 +8,14 @@ import {
   type Limites,
 } from '@conversor/nucleo';
 import { engineImagem } from './imagem.js';
+import { enginePdf } from './pdf.js';
 import { arestasPorVir, enginesPorVir } from './porVir.js';
 import type { Deteccao, Engine } from './registro.js';
 
 /**
  * O registro de engines do servidor. Uma engine nova entra nesta lista e mais nada muda.
  */
-const ENGINES: readonly Engine[] = [engineImagem];
+const ENGINES: readonly Engine[] = [engineImagem, enginePdf];
 
 export interface Instalacao {
   readonly engines: ReadonlyMap<string, { engine: Engine; deteccao: Deteccao }>;

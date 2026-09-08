@@ -155,7 +155,46 @@ export interface OpcoesVetor {
   forcarFoto?: boolean;
 }
 
-export type Opcoes = OpcoesImagem & OpcoesVetor;
+/** As opções do eixo do PDF: rasterizar páginas, e montar PDF a partir de imagem. */
+export interface OpcoesPdf {
+  /**
+   * Quais páginas rasterizar. `todas` por padrão; aceita `3`, `2-5`, `1,4,7-9`.
+   *
+   * Quando a seleção resolve para mais de uma página, a saída é um `.zip` com uma imagem por
+   * página — não há como caber várias páginas num PNG, e escolher a primeira em silêncio seria
+   * perder o resto sem avisar. A interface avisa quando isso acontece.
+   */
+  paginas?: string;
+  /**
+   * Resolução da rasterização, em pontos por polegada. 150 por padrão.
+   *
+   * DPI, e não fator de escala, porque é assim que a pessoa pensa: 150 serve para tela e para
+   * impressão caseira, 300 é o de gráfica e dobra a memória e o tempo. Uma página A4 a 150 DPI
+   * dá 1240 × 1754 px.
+   */
+  dpi?: number;
+  /**
+   * Ao montar PDF a partir de imagem: o tamanho da página.
+   *
+   * `imagem` por padrão — a página fica do tamanho da imagem, sem margem branca que ninguém
+   * pediu. `a4` e `carta` encaixam a imagem na folha, respeitando a proporção.
+   */
+  pdfPagina?: 'imagem' | 'a4' | 'carta';
+  /** Margem em milímetros, só quando a página é `a4` ou `carta`. */
+  pdfMargem?: number;
+  /**
+   * Ao montar PDF: embutir a imagem sem perda.
+   *
+   * O padrão não é um booleano fixo, é uma regra: origem SEM perda (PNG, TIFF, BMP, GIF, SVG)
+   * entra sem perda, e origem COM perda (JPEG, WebP, AVIF, HEIC) entra como JPEG. A regra
+   * respeita a intenção de quem escolheu o arquivo — quem tem um PNG de captura de tela se
+   * importa com o texto nítido, e quem tem um JPEG já aceitou a perda. Marcar isto força sem
+   * perda em qualquer origem, ao preço de um arquivo bem maior em foto.
+   */
+  pdfSemPerda?: boolean;
+}
+
+export type Opcoes = OpcoesImagem & OpcoesVetor & OpcoesPdf;
 
 /* ==================== trabalhos ==================== */
 
