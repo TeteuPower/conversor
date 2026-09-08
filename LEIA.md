@@ -32,23 +32,54 @@ saída dos três num terminal só. A interface fica em <http://localhost:7665>, 
 
 A porta pode ser trocada: `CONVERSOR_PORTA=7667 npm start`.
 
+### Variáveis de ambiente
+
+| variável | padrão | para que serve |
+|---|---|---|
+| `CONVERSOR_PORTA` | 7666 | trocar a porta, quando a 7666 estiver ocupada |
+| `CONVERSOR_TETO_PAGINAS_MB` | 384 | teto de memória ao rasterizar um PDF de muitas páginas |
+
+O teto de páginas existe porque rasterizar guarda as páginas prontas na memória até fechar o
+pacote `.zip` — o escritor de ZIP precisa dos bytes de cada arquivo para calcular o CRC. Um PDF de
+duzentas páginas cheias de imagem a 300 DPI passa de um gigabyte assim. Ao bater no teto, a
+conversão é recusada com uma mensagem que diz o que fazer (menos páginas, menos DPI, ou JPEG em
+vez de PNG), em vez de o processo morrer sem explicação. Quem tem memória de sobra levanta o teto.
+
 ## O que dá para converter hoje
 
-**Imagem**, entre si — PNG, JPEG, WebP, AVIF, GIF, TIFF — e **imagem para SVG**, pelo vetorizador.
-São 48 conversões. A tela inicial lista exatamente quais, lidas da sua instalação, e não de uma
-tabela escrita à mão.
+São **62 conversões**. A tela inicial lista exatamente quais, lidas da sua instalação, e não de
+uma tabela escrita à mão.
 
-O resto das famílias — documento, áudio, vídeo, e-book, compactado, fonte, CAD — está declarado no
-seletor, desabilitado, com o marco em que chega. Ver [ARQUITETURA.md](ARQUITETURA.md#os-marcos).
+| eixo | conversões |
+|---|---|
+| **imagem** entre si | PNG, JPEG, WebP, AVIF, GIF, TIFF |
+| **imagem → SVG** | pelo vetorizador, no navegador |
+| **PDF → imagem** | PNG, JPEG, WebP, AVIF, TIFF, por página |
+| **PDF → texto** | o texto que o PDF carrega |
+| **imagem → PDF** | uma página, do tamanho da imagem ou em A4/Carta |
 
-Duas conversões merecem nota:
+O resto das famílias — documento de escritório, áudio, vídeo, e-book, compactado, fonte, CAD —
+está declarado no seletor, desabilitado, com o marco em que chega. Ver
+[ARQUITETURA.md](ARQUITETURA.md#os-marcos).
+
+Quatro conversões merecem nota:
 
 - **para SVG** é o [vetorizador](vetorizador/fonte/LEIA.md), e ele roda no NAVEGADOR. O arquivo não
   atravessa nem o localhost. Ele traça o contorno a partir do campo de cobertura, ajusta Béziers,
   e escolhe o número de classes de cor pelo resíduo do modelo de pintura — não por opção. Recusa
   imagem fotográfica, e a recusa está certa: o SVG sairia maior que o original e com menos detalhe.
+- **PDF para imagem** rasteriza página por página, e a barra de progresso conta "página 7 de 24" —
+  é o único lugar do projeto em que o progresso é exato, e não uma aproximação calibrada. Mais de
+  uma página sai como `.zip`, uma imagem por página, e a interface avisa antes.
+- **JPEG para PDF** copia os bytes do JPEG para dentro do PDF, sem decodificar nem recomprimir. A
+  foto dentro do PDF é exatamente a que entrou.
 - **para HEIC** não existe, e não é esquecimento: escrever HEIC precisa do codificador HEVC, que
   não vem no pacote binário do sharp por causa de patente. Ler HEIC funciona.
+
+O que o eixo do PDF **não** faz: comprimir PDF preservando o texto, e converter PostScript, AI e
+CorelDRAW. Dá para rasterizar um PDF e remontá-lo, e isso encolhe o arquivo — mas destrói o texto
+e o vetor, virando foto de papel. Chamar isso de compressão seria mentir sobre o que aconteceu,
+então fica de fora até haver Ghostscript.
 
 ## As duas coisas que este projeto leva a sério
 
@@ -89,12 +120,12 @@ falha se o valor cair uma vez, ou se chegar a 100 antes de o botão de baixar ex
 ## Como o repositório é dividido
 
 ```
-nucleo/       o contrato entre os dois lados, o catálogo de formatos e o cálculo de progresso
-servidor/     HTTP, fila de trabalhos, registro de engines
+nucleo/       o contrato entre os dois lados, o catálogo de formatos, o progresso e o ZIP
+servidor/     HTTP, fila de trabalhos, registro de engines, o escritor de PDF
 web/          a interface (React + Vite)
 vetorizador/  o vetorizador, e o vetorizador.html de duplo clique que sai dele
 e2e/          o teste de ponta a ponta, num navegador de verdade
-ferramentas/  o orquestrador do npm run dev
+ferramentas/  o orquestrador do npm run dev e as mesas de medição
 ```
 
 O `vetorizador/` é o projeto que veio antes deste e continua entregando o próprio produto: um HTML
@@ -114,6 +145,8 @@ mesmo commit. Ver [vetorizador/fonte/LEIA.md](vetorizador/fonte/LEIA.md).
 | `npm run tipos` | só a checagem de tipos |
 | `npm run vetorizador` | regera o `vetorizador.html` de duplo clique a partir dos módulos |
 | `npm run medir-pesos -w servidor` | recalibra os pesos das etapas nesta máquina |
+| `node ferramentas/medir-vetorizador.mjs` | mede as etapas do vetorizador |
+| `node ferramentas/gera-amostras.mjs --conferir` | regera as amostras da sonda de decodificação |
 
 ## Acrescentar uma engine
 

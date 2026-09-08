@@ -62,7 +62,7 @@ async function carregaPlaywright() {
  * deixa o material inspecionável — está tudo neste arquivo — e cada caso diz para que serve.
  */
 async function materialDeTeste() {
-  const sharp = require(join(RAIZ, 'node_modules', 'sharp'));
+  const sharp = exige('sharp');
   await mkdir(SAIDA, { recursive: true });
 
   // Arte chapada com curva: o caso do vetorizador. Também é entrada válida para imagem→imagem.
@@ -99,6 +99,52 @@ async function materialDeTeste() {
   await sharp(px, { raw: { width: 500, height: 500, channels: 3 } }).png().toFile(ruido);
 
   return { chapada, comAlfa, ruido };
+}
+
+/**
+ * Um PDF de três páginas, produzido pelo PRÓPRIO Chrome.
+ *
+ * A independência é o ponto. Os testes de unidade do escritor de PDF montam o arquivo com o
+ * escritor deste projeto e o leem de volta com o pdfium — o que prova que os dois concordam, e
+ * não que o arquivo está certo. Um PDF vindo do Chrome fecha esse buraco: se o rasterizador só
+ * soubesse ler o que o nosso escritor produz, seria aqui que apareceria.
+ *
+ * Cada página tem uma cor chapada distinta e um texto conhecido, então a página que sai da
+ * conversão é identificável pela cor, e a extração de texto tem o que conferir.
+ */
+async function pdfDoChrome(navegador) {
+  const cores = ['#2F6FFF', '#FFC400', '#E5484D'];
+  const pagina = await (await navegador.newContext()).newPage();
+  await pagina.setContent(
+    `<style>
+       @page { size: A4; margin: 0 }
+       body { margin: 0; font: 30px system-ui }
+       .pg { height: 297mm; display: flex; flex-direction: column;
+             align-items: center; justify-content: center; page-break-after: always }
+     </style>` +
+      cores
+        .map(
+          (c, i) =>
+            `<div class="pg" style="background:${c}">` +
+            `<h1>PAGINA ${i + 1} DE 3</h1><p>marcador-${i + 1}-coração</p></div>`,
+        )
+        .join(''),
+  );
+  const bytes = await pagina.pdf({ printBackground: true, width: '210mm', height: '297mm' });
+  await pagina.close();
+  const caminho = join(SAIDA, 'chrome-3-paginas.pdf');
+  await writeFile(caminho, bytes);
+  return { caminho, cores };
+}
+
+/** Baixa a saída de um trabalho concluído, pelo mesmo endereço que o botão usa. */
+async function baixaSaida(pagina) {
+  const url = await pagina.getAttribute('.cartao .botao-baixar', 'href');
+  if (!url) throw new Error('o cartão não tem botão de baixar');
+  const absoluta = url.startsWith('http') ? url : new URL(url, ENDERECO).toString();
+  const resposta = await fetch(absoluta);
+  if (!resposta.ok) throw new Error(`baixar respondeu ${resposta.status}`);
+  return Buffer.from(await resposta.arrayBuffer());
 }
 
 /**
@@ -211,6 +257,48 @@ function conferePropriedadesDaBarra(nome, { valores, rotulos, estado }) {
   return distintos.size;
 }
 
+/** Esvazia a fila e espera os cartões saírem. */
+async function limpaFila(pagina) {
+  const limpar = await pagina.$('.acoes-fim .botao-fantasma:last-child');
+  if (limpar) {
+    await limpar.click();
+    await pagina.waitForSelector('.cartao', { state: 'detached', timeout: 5000 }).catch(() => {});
+  }
+}
+
+/** Abre o painel de opções do primeiro cartão, roda o que for pedido, e aplica. */
+async function ajustaOpcoes(pagina, mexe) {
+  await pagina.click('.cartao:first-of-type .cartao-acoes .botao-icone');
+  await pagina.waitForSelector('.painel-opcoes');
+  await mexe();
+  await pagina.click('.painel-opcoes .botao-principal');
+  await pagina.waitForSelector('.painel-opcoes', { state: 'detached' });
+}
+
+/**
+ * Carrega um pacote do projeto, onde ele estiver.
+ *
+ * Num monorepo com espaços de trabalho, o npm instala na raiz o que é compartilhado e dentro do
+ * pacote o que é exclusivo dele — `sharp` acabou na raiz, `@hyzyla/pdfium` dentro de `servidor`.
+ * Este teste roda da raiz e precisa dos dois, então procura nos dois lugares em vez de assumir.
+ */
+function exige(nome) {
+  for (const base of [join(RAIZ, 'node_modules'), join(RAIZ, 'servidor', 'node_modules')]) {
+    try {
+      return require(join(base, nome));
+    } catch {
+      /* tenta o próximo */
+    }
+  }
+  throw new Error(`não achei o pacote "${nome}". Rode \`npm install\` na raiz.`);
+}
+
+/** A cor dominante de uma imagem, pelo sharp. */
+async function sharpDominante(bytes) {
+  const { dominant } = await exige('sharp')(bytes).stats();
+  return dominant;
+}
+
 /** Troca o destino do primeiro cartão pelo formato buscado. */
 async function escolheDestino(pagina, termo) {
   await pagina.click('.cartao:first-of-type .selo-destino');
@@ -276,8 +364,7 @@ async function principal() {
 
   /* ---------- 2. o vetorizador, no navegador ---------- */
   console.log('\n== PNG para SVG (navegador, vetorizador) ==');
-  await pagina.click('.acoes-fim .botao-fantasma:last-child'); // Limpar
-  await pagina.waitForSelector('.cartao', { state: 'detached', timeout: 5000 });
+  await limpaFila(pagina);
 
   await pagina.setInputFiles('input[type=file]', material.chapada);
   await escolheDestino(pagina, 'svg');
@@ -311,8 +398,7 @@ async function principal() {
 
   /* ---------- 3. o aviso de perda de transparência ---------- */
   console.log('\n== PNG com alfa para JPEG (deve avisar) ==');
-  await pagina.click('.acoes-fim .botao-fantasma:last-child');
-  await pagina.waitForSelector('.cartao', { state: 'detached', timeout: 5000 });
+  await limpaFila(pagina);
 
   await pagina.setInputFiles('input[type=file]', material.comAlfa);
   await escolheDestino(pagina, 'jpeg');
@@ -327,8 +413,7 @@ async function principal() {
 
   /* ---------- 4. o vetorizador recusando foto ---------- */
   console.log('\n== ruído para SVG (deve recusar, e é a resposta certa) ==');
-  await pagina.click('.acoes-fim .botao-fantasma:last-child');
-  await pagina.waitForSelector('.cartao', { state: 'detached', timeout: 5000 });
+  await limpaFila(pagina);
 
   await pagina.setInputFiles('input[type=file]', material.ruido);
   await escolheDestino(pagina, 'svg');
@@ -379,7 +464,148 @@ async function principal() {
   await pagina.screenshot({ path: join(SAIDA, '4-seletor-honesto.png') });
   await pagina.keyboard.press('Escape');
 
-  /* ---------- 6. nada saiu da máquina ---------- */
+  /* ---------- 6. o eixo do PDF ---------- */
+  console.log('\n== PDF do Chrome para imagem, texto e volta ==');
+  const { caminho: pdfChrome } = await pdfDoChrome(navegador);
+
+  // 6a. uma página escolhida no meio sai como imagem, e é a página certa.
+  await limpaFila(pagina);
+  await pagina.setInputFiles('input[type=file]', pdfChrome);
+  const destinoDePdf = (await pagina.textContent('.selo-destino'))?.trim();
+  confere(destinoDePdf?.startsWith('PNG'), `o destino sugerido para PDF é PNG — veio "${destinoDePdf}"`);
+
+  await ajustaOpcoes(pagina, async () => {
+    await pagina.fill('input[aria-label="Páginas"]', '2');
+  });
+  await pagina.click('.botao-principal.botao-grande');
+  const barraPagina = await acompanhaBarra(pagina, '.cartao');
+  conferePropriedadesDaBarra('pdf→png (1 página)', barraPagina);
+
+  const imagem = await baixaSaida(pagina);
+  confere(
+    imagem.subarray(1, 4).toString('latin1') === 'PNG',
+    'a saída de uma página é um PNG de verdade',
+  );
+  const corDaPagina2 = await sharpDominante(imagem);
+  // A página 2 é amarela (#FFC400). Se a seleção fosse ignorada, viria o azul da página 1.
+  confere(
+    corDaPagina2.r > 200 && corDaPagina2.g > 140 && corDaPagina2.b < 90,
+    `e é a página 2, não a primeira — dominante ${JSON.stringify(corDaPagina2)}`,
+  );
+
+  // 6b. todas as páginas: vira .zip, e o nome do download muda junto.
+  await limpaFila(pagina);
+  await pagina.setInputFiles('input[type=file]', pdfChrome);
+  await pagina.click('.botao-principal.botao-grande');
+  const barraTodas = await acompanhaBarra(pagina, '.cartao');
+  conferePropriedadesDaBarra('pdf→png (3 páginas)', barraTodas);
+
+  const contouPaginas = barraTodas.rotulos.some((r) => /Rasterizando 3 páginas/.test(r));
+  confere(contouPaginas, `a barra nomeou a etapa pelas páginas — ${barraTodas.rotulos.join(' / ')}`);
+
+  const nomeDoZip = await pagina.getAttribute('.cartao .botao-baixar', 'download');
+  confere(
+    nomeDoZip?.endsWith('-paginas.zip') === true,
+    `três páginas viram um pacote, e o download se chama "${nomeDoZip}"`,
+  );
+  const avisoZip = await pagina.textContent('.nota-atencao').catch(() => null);
+  confere(
+    /não cabem num PNG/.test(avisoZip ?? ''),
+    `e o cartão avisa antes — "${avisoZip?.trim().slice(0, 60) ?? '(nada)'}…"`,
+  );
+  const pacote = await baixaSaida(pagina);
+  confere(pacote.subarray(0, 2).toString('latin1') === 'PK', 'e o arquivo baixado é um ZIP');
+
+  // 6c. o texto que o PDF carrega é lido, e sai com o acento certo.
+  await limpaFila(pagina);
+  await pagina.setInputFiles('input[type=file]', pdfChrome);
+  await escolheDestino(pagina, 'txt');
+  await pagina.click('.botao-principal.botao-grande');
+  conferePropriedadesDaBarra('pdf→txt', await acompanhaBarra(pagina, '.cartao'));
+
+  const texto = (await baixaSaida(pagina)).toString('utf-8');
+  confere(/PAGINA 1 DE 3/.test(texto), 'o texto da página 1 foi extraído');
+  confere(/PAGINA 3 DE 3/.test(texto), 'o da página 3 também');
+  confere(
+    texto.includes('marcador-2-coração'),
+    'e o acento sobreviveu à ida e volta — "marcador-2-coração"',
+  );
+
+  // 6d. a volta: imagem para PDF, conferida por um leitor de PDF de verdade.
+  await limpaFila(pagina);
+  await pagina.setInputFiles('input[type=file]', material.chapada);
+  await escolheDestino(pagina, 'pdf');
+  await pagina.click('.botao-principal.botao-grande');
+  conferePropriedadesDaBarra('png→pdf', await acompanhaBarra(pagina, '.cartao'));
+
+  const pdfGerado = await baixaSaida(pagina);
+  confere(
+    pdfGerado.subarray(0, 8).toString('latin1') === '%PDF-1.4',
+    'a saída é um PDF, pelo cabeçalho',
+  );
+  // `import()` e não `exige()`: o `@hyzyla/pdfium` só publica a condição `import` nos exports,
+  // então `require` responde MODULE_NOT_FOUND mesmo com o pacote instalado ali. O `exige`
+  // continua servindo ao sharp, que publica CommonJS.
+  const { PDFiumLibrary } = await import('@hyzyla/pdfium');
+  const lib = await PDFiumLibrary.init();
+  const doc = await lib.loadDocument(pdfGerado);
+  confere(doc.getPageCount() === 1, `e o pdfium o abre, com ${doc.getPageCount()} página`);
+  const bitmap = await doc.getPage(0).render({ scale: 1, render: 'bitmap' });
+
+  /*
+   * A conferência varre a página inteira e conta a PALETA, em vez de amostrar coordenadas.
+   *
+   * As duas primeiras versões disto amostravam pontos calculados à mão na arte de prova, e as
+   * duas erraram a geometria — a primeira leu a elipse amarela achando que era o círculo, a
+   * segunda leu a onda azul. O teste acusava defeito onde não havia, o que é o pior tipo de
+   * teste: ele treina quem lê a ignorar a falha.
+   *
+   * Contar cor é imune a isso e prova mais. A arte tem exatamente três cores, e todas as três
+   * têm de aparecer em quantidade significativa: uma página em branco passaria por qualquer
+   * asserção de "não é preto", e uma página só com o fundo — que é o que um PDF com a imagem
+   * faltando produz — passaria por qualquer asserção de uma cor só.
+   */
+  const PALETA = [
+    { nome: 'amarelo do fundo', r: 0xff, g: 0xc4, b: 0x00 },
+    { nome: 'escuro do círculo', r: 0x1a, g: 0x1d, b: 0x24 },
+    { nome: 'azul da onda', r: 0x2f, g: 0x6f, b: 0xff },
+  ];
+  const contagem = PALETA.map(() => 0);
+  let amostrados = 0;
+  // De quatro em quatro pixels em cada eixo: 675 x 525 dão 22 mil amostras, suficiente e rápido.
+  for (let y = 0; y < bitmap.height; y += 4) {
+    for (let x = 0; x < bitmap.width; x += 4) {
+      const i = (y * bitmap.width + x) * 4;
+      amostrados++;
+      PALETA.forEach((c, k) => {
+        if (
+          Math.abs(bitmap.data[i] - c.r) <= 12 &&
+          Math.abs(bitmap.data[i + 1] - c.g) <= 12 &&
+          Math.abs(bitmap.data[i + 2] - c.b) <= 12
+        ) {
+          contagem[k]++;
+        }
+      });
+    }
+  }
+
+  PALETA.forEach((c, k) => {
+    const fracao = contagem[k] / amostrados;
+    confere(
+      fracao > 0.02,
+      `o ${c.nome} atravessou para o PDF — ${(fracao * 100).toFixed(1)}% da página`,
+    );
+  });
+  const reconhecidos = contagem.reduce((a, b) => a + b, 0) / amostrados;
+  confere(
+    reconhecidos > 0.9,
+    `e ${(reconhecidos * 100).toFixed(0)}% da página é uma das três cores da arte, sem sujeira`,
+  );
+  doc.destroy();
+  lib.destroy();
+  await pagina.screenshot({ path: join(SAIDA, '5-eixo-do-pdf.png') });
+
+  /* ---------- 7. nada saiu da máquina ---------- */
   console.log('\n== a promessa da aplicação ==');
   confere(
     requisicoesExternas.length === 0,

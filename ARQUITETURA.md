@@ -115,6 +115,74 @@ Três bugs de honestidade, todos pegos pelo teste de ponta a ponta e nenhum por 
 3. A fila do servidor emitia `{fracao: 1, etapa: 'fim'}` antes do evento `concluido`. O cliente
    aparava por conta própria, mas consertar no consumidor um contrato torto na origem é remendo.
 
+## O eixo do PDF
+
+Duas direções, dois mecanismos, e uma decisão de peso em cada.
+
+### PDF para imagem: pdfium em WebAssembly
+
+pdfium é o mecanismo de PDF do Chrome. Compilado em WebAssembly, ele vem pelo `npm install` — sem
+instalação de sistema, o que mantém a promessa de que o projeto sobe com um comando. Ele rasteriza
+a página num bitmap RGBA e o sharp codifica, então esta engine herda de graça tudo o que a engine
+de imagem já sabe fazer.
+
+**Aqui o progresso é exato.** Página é uma unidade natural de trabalho: a engine sabe quantas são
+antes de começar e conta uma a uma, então a barra é literalmente "página 7 de 24". É o único lugar
+do projeto em que a fração não é uma aproximação calibrada.
+
+Duas armadilhas do pdfium, encontradas sondando:
+
+- **O objeto de página é invalidado depois de um `render()`.** Reaproveitá-lo derruba o
+  WebAssembly com `table index is out of bounds`, e o erro não menciona página nenhuma. A engine
+  chama `doc.getPage(i)` de novo a cada uso.
+- **`render({ width })` não preserva proporção.** Numa A4, `{width: 400}` devolve 400 × 841. Quem
+  quiser proporção calcula os dois lados. A engine usa `scale`, derivada da DPI.
+
+**Mais de uma página sai como `.zip`**, uma imagem por página. Não há como caber duas páginas num
+PNG, e pegar a primeira em silêncio seria perder o resto sem avisar. O Convertio faz o mesmo; a
+diferença é que aqui a interface diz que vai acontecer, e a engine sobrescreve o nome e o tipo da
+saída (ver `ResultadoEngine.nomeSaida`) — sem isso o download sairia batizado `.png` com um ZIP
+dentro.
+
+### Imagem para PDF: escritor próprio
+
+O escritor está em `servidor/src/pdf/escritor.ts`, tem cerca de 250 linhas e nenhuma dependência.
+A razão de peso para escrevê-lo em vez de usar `pdf-lib` é o **JPEG passar direto**: um JPEG
+embutido com `/DCTDecode` é o mesmo JPEG, byte a byte. Nada é decodificado, nada é recomprimido, e
+a foto dentro do PDF é exatamente a que entrou. Pelo caminho comum, uma foto de 12 MP viraria
+36 MB de pixel cru na memória e sairia recomprimida — mais lenta, maior, e com uma geração de
+perda a mais.
+
+O risco de escrever à mão fica **medido, e não assumido**: os testes montam o PDF com o escritor e
+o leem de volta com o pdfium, comparando as cores. E o teste de ponta a ponta converte um PDF
+produzido pelo próprio Chrome, para o escritor não ser o único elo da corrente que este projeto
+controla.
+
+A regra de compressão respeita a intenção de quem escolheu o arquivo: **origem sem perda entra sem
+perda** (PNG, TIFF, GIF, SVG), **origem com perda entra como JPEG**. Quem tem um PNG de captura de
+tela se importa com o texto nítido; quem tem um JPEG já aceitou a perda.
+
+### O que ficou de fora, e por quê
+
+Comprimir PDF preservando o texto. Dá para rasterizar cada página e remontar, e isso ENCOLHE o
+arquivo — mas destrói o texto e o vetor, virando foto de papel. Chamar isso de compressão seria
+mentir sobre o que aconteceu. Fica declarado para o Ghostscript, junto com PostScript, AI e
+CorelDRAW.
+
+### Outros dois que os testes pegaram
+
+Não são de progresso, mas são da mesma família — código que parecia funcionar e não funcionava:
+
+4. **O caminho rápido do JPEG nunca disparava.** A condição era `opc.girarPeloExif !== false`, e
+   essa comparação é verdadeira quando a opção vem `undefined`, que é o padrão. Resultado: todo
+   JPEG era recodificado, e a passagem direta de bytes — a razão de o escritor de PDF existir —
+   era código morto. Hoje girar só é necessário quando o arquivo DECLARA orientação diferente de 1.
+5. **O aviso de transparência aparecia sobre imagens opacas.** `metadata().hasAlpha` diz que
+   existe um CANAL alfa, não que algum pixel seja transparente — e um PNG rasterizado de SVG tem o
+   canal e é todo opaco. A aplicação avisava "o que era transparente ficou branco" sobre uma
+   imagem em que nada era transparente, o que gasta a credibilidade dos avisos que correspondem.
+   Hoje `stats().isOpaque` responde a pergunta certa, e só é chamado quando a resposta muda algo.
+
 ## O grafo de conversões
 
 `nucleo/src/grafo.ts`. Três perguntas: quais destinos existem para esta origem, este destino está
@@ -128,6 +196,18 @@ agora, e é montado no servidor a partir do que cada engine declara suportar E d
 confirmou existir na máquina.
 
 São perguntas diferentes, e separá-las é o que permite mostrar o destino desabilitado com o motivo.
+
+### Uma aresta por par, e a tensão que isso cria
+
+O grafo tem uma aresta por par origem→destino. Isso é simples e quase sempre certo, e já apareceu
+um caso em que aperta: `pdf → txt` existe pela engine `pdf`, que lê o texto que o PDF CARREGA como
+texto. O Tesseract faria outra coisa com o mesmo par — ler o texto desenhado nos pixels de uma
+digitalização. São conversões diferentes com a mesma origem e o mesmo destino.
+
+A resolução escolhida: quando o Tesseract entrar, ele será uma OPÇÃO na conversão que já existe, e
+não uma aresta concorrente. O aviso que a engine `pdf` já emite ao encontrar página sem texto é o
+gancho para isso. Declarar as duas criaria uma aresta indisponível que nunca seria escolhida — a
+real tem precedência — e a interface mostraria "chega no marco 5" num destino que já funciona.
 
 ### Um salto só, de propósito
 
@@ -252,15 +332,24 @@ em cache pode oferecer um par que já não existe.
 
 ## Os marcos
 
-O marco 1 está entregue: imagem e o vetorizador, ponta a ponta — interface, fila, engine,
-progresso, download, testes.
+**Marco 1, entregue:** imagem e o vetorizador, ponta a ponta — interface, fila, engine, progresso,
+download, testes.
 
-| marco | o que entra | engine |
-|---|---|---|
-| 2 | documento, planilha, apresentação, PDF | LibreOffice, Ghostscript, pdfium |
-| 3 | áudio e vídeo | ffmpeg |
-| 4 | e-book, compactado, fonte | Calibre, 7-Zip, fontTools |
-| 5 | CAD e 3D, OCR | Open Design, assimp, Tesseract |
+**Marco 2, entregue em parte.** O eixo do PDF está pronto e verificado: PDF → imagem, PDF → texto,
+imagem → PDF. O que falta é o documento de escritório — `docx/xlsx/pptx → pdf` —, e falta por uma
+razão que não é técnica: ele exige o LibreOffice instalado, e essa é uma decisão de quem usa a
+máquina, não do código. A engine está declarada e o seletor mostra o destino em cinza com o
+comando de instalação.
+
+| marco | o que entra | engine | situação |
+|---|---|---|---|
+| 1 | imagem, vetor | libvips, vetorizador | entregue |
+| 2 | PDF | pdfium | entregue |
+| 2 | documento, planilha, apresentação | LibreOffice | declarado |
+| 2 | comprimir PDF, PostScript, AI, CDR | Ghostscript, libcdr | declarado |
+| 3 | áudio e vídeo | ffmpeg | declarado |
+| 4 | e-book, compactado, fonte | Calibre, 7-Zip, fontTools | declarado |
+| 5 | CAD e 3D, OCR | Open Design, assimp, Tesseract | declarado |
 
 Estão declarados em `servidor/src/engines/porVir.ts`, e é de lá que sai o "chega no marco N" que o
 seletor mostra. Quando uma engine de verdade entra, ela sai daquele arquivo e passa a ser listada
@@ -300,6 +389,7 @@ O que costuma dar errado, e vale ler antes:
 |---|---|
 | `nucleo/src/*.teste.ts` | monotonia do progresso, catálogo, formatação |
 | `servidor/src/*.teste.ts` | fila, cancelamento, travessia de caminho, nome de arquivo |
+| `servidor/src/engines/pdf.teste.ts` | o escritor de PDF lido de volta pelo pdfium, seleção de páginas, empacotamento |
 | `web/src/**/*.teste.ts` | o redutor da fila: relato atrasado, reabertura, média ponderada |
 | `e2e/fluxo.mjs` | o fluxo inteiro num navegador de verdade |
 
