@@ -42,6 +42,13 @@ if dup:
 cab = ('<!-- Vetorizador — arquivo unico, sem dependencia externa.\n'
        '     Gerado por montar.py a partir dos modulos: ' + ', '.join(ORDEM) + ' + app-fonte.html.\n'
        '     Abra com duplo clique. Nada sai desta maquina: a imagem e processada no proprio navegador. -->\n')
-saida.write_text(cab + html, encoding='utf-8')
+# `newline` fixo em LF, e nao o padrao da plataforma.
+#
+# Sem isto, no Windows o Python traduz cada \n em \r\n na gravacao, e o arquivo
+# sai com CRLF enquanto o .gitattributes manda o repositorio guardar LF. O conteudo fica
+# identico — o `git diff` normaliza e a CI aprova —, mas o `git status` marca o entregavel
+# como modificado depois de todo `npm run vetorizador`, sem que nada tenha mudado. Arquivo
+# sujo por engano ensina a ignorar a sujeira, e um dia a de verdade passa junto.
+saida.write_text(cab + html, encoding='utf-8', newline='\n')
 print(f'{saida.name}: {saida.stat().st_size} bytes, {len(html.splitlines())} linhas')
 print('nomes no escopo unico:', len(decls), '| colisoes: 0')
